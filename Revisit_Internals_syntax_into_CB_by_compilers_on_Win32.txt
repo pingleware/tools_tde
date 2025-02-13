@@ -1,0 +1,1869 @@
+     Proposals to change syntax of internal commands used by CB IDE to generate success build of targets.
+
+CB use an internal format of different commands to generate "target" dependant of kinds of configured 
+compilers with objective to respect "correct" syntax to achieve build process. This syntax, describe 
+above with different kind of compilers, use different "symbol name" named "command macro" like "$compiler" 
+to design executable to compile or like "$file" to design input file of compilers's tool, or "$link_objects" 
+to design list of object files needed for linkage, etc...  
+
+Example with compiler GNU C/C++ (and all of derivatives of GCC integrated into package or development's environment)
+
+	1) command : compile single file to object file 
+		$compiler $options $includes -c $file -o $object
+	2) command : generate dependencies for file
+		$compiler -MM $options -MF $dep_object -MT $object $includes $file
+	3) command : compile Win32 resource file 
+		$rescomp $res_includes $res_options -J rc -O coff -i $file -o $resource_output
+	4) command : link object files to executable 				(or GUI executable on Win32 systems)
+		$linker $libdirs -o $exe_output $link_objects $link_resobjects $link_options $libs -mwindows
+	5) command : link object files to console executable
+		$linker $libdirs -o $exe_output $link_objects $link_resobjects $link_options $libs
+	6) command : link object files to dynamic library
+		$linker -shared -Wl,--output-def=$def_output -Wl,--out-implib=$static_output -Wl,--dll $libdirs  \
+				$link_objects $link_resobjects -o $exe_output $link_options $libs
+	7) command : link object files to static library
+		cmd /c if exist $static_output del $TO_WINDOWS_PATH{$static_output}
+		$lib_linker -r -s $static_output $link_objects
+	8) command : link object files to native executable 
+		$linker $libdirs -o $exe_output $link_objects $link_resobjects $link_options $libs -Wl,--subsystem,native
+		
+Remark 1 : --subsystem,native indicate choice to generate Kernel mode drivers for Windows NT (and superior). 
+		This option is normally reserved for Windows system components.
+		
+Remark 2 : To generate DLL on Win32 with GCC, developers of CB had chooseen to add two supplemental options 
+		to generate automatically the import library and the definition file of DLL (shared library). 
+		Very good choice.
+		And these options appear into CB interface during creation of DLL project, but, it seem that they are
+		choose or not by user of IDE. Strange, with GCC this choice seem to be fix and not optional. True ?
+		
+Remark 3 : Why presence of command before creation of static library like 
+		cmd /c if exist $static_output del $TO_WINDOWS_PATH{$static_output} ?
+		Clean process don't suppress file with extension ".lib" or ".a" ? Strange, why not ?
+		
+With GNU C/C+, these syntax are clearly identified, because this compiler is very common on multiple platforms.
+And during his startup, CB can detect automatically presence of this compiler on Win32 platforms.
+Good, but with C/C++ compilers unrecognized by CB, or with syntax not aligned with last version or evolution of 
+compilers installed on your platform, the going gets tough ... 
+
+Then, after list of "major options" of different tools integrated into all kinds of "free" compilers C/C++ 
+available on Win32 plateforms, and also to distinguish target generation beetween 32 or 64 bit, it seem mandatory  
+to precise if CB respect or not good syntax to build targets, and contribute to suggest evolutions in order to 
+ameliorate this IDE.  
+
+Focus are do to success build DLL target on Win32 systems, but, if possible, to generate in parallel "import library"
+too and also used, if possible, and definition file in input to generation to permit manage of alias of exported 
+symbols of DLL. All a program !
+
+Then, list of free C/C++ compilers can be installed on last Win32 systems (like Windows 11 64 bit 24H2) is next :
+
+		- Borland C/C++ (32 bit only, and use in internal format OMF to static library, not COFF), 	version 5.5.1
+		- CLANG C/C++ (32 and 64 bit) leaned with MingW32/64 integrated into MSYS2 package, 		version 19.1.7
+		- CLANG C/C++ (32 and 64 bit) leaned with MingW32/64 integrated into Winlib packages, 		version 19.1.7
+		- CLANG C/C++ (32 and 64 bit) leaned with MSVC included in package Visual Studio 2022, 		version 19.1.7
+		- Cygwin "native" GNU C/C++ (64 bit), 														version 12.4.0
+		- Cygwin GNU C/C++ (32 and 64 bit) joined with MingW32/64 integrated into Cygwin64 package, version 12.4.0
+		- Digital Mars Compiler C/C++ (32 only), version of installation package is 8.57c			version 8.42n
+					(and use in internal format OMF to static library, not COFF),
+		- GNU C/C++ (32 bit only) issued of MingW32 "official" package, 							version 9.2.0
+		- GNU C/C++ (64 bit) issued of MingW64 integrated into CB IDE, 								version 11.2.0
+		- GNU C/C++ (64 bit) issued of MingW64 integrated into Red-Panda IDE (just to fun !),  		version 11.2.0
+		- GNU C/C++ (32 and 64 bit) issued of MingW32/64 + Mscrt integrated into MSYS2 package, 	version 14.2.0
+		- GNU C/C++ (64 bit) issued of MingW64/Ucrt integrated into MSYS2 package, 					version 14.2.0
+		- GNU C/C++ (32 and 64 bit) issued of MingW32/64 + Ucrt integrated into Winlib packages, 	version 14.2.0
+		- LCC compiler (32 and 64 bit)																versions 3.8/4.2
+		- GNU C/C++ (32 and 64 bit) issued of MinGW32/64 integrated into TDM32/64 packages, 		version 10.3.0
+		- MSVC (32 and 64 bit) included in package Visual Studio 2022 + Kit Window (or SDK), 		version 119.43.34808
+		- OneAPI Intel Compiler C/C++ (32 and 64 bit), last version that permit 32 bit generation	version 2024.2.0
+		- Open Watcom Compiler C/C++ (two directories of binaries 32 and 64 bit, BUT target only 32 bit) version 2.0 (enhanced)
+		- Pelles C Compiler (32 and 64 bit),														version 12.0.1
+		- "Tiny C" Compiler (32 and 64 bit),														version 0.9.27
+
+If you distinguish Debug and Release version of build targets with simple C source code, you can generate 66 executable 
+or DLL on Windows systems 64 bit with IDE CB. All rigth, no ? Amazing or not, unnecessary or not, it's possible, and 
+"quasi" with same source code (ex : internal format of definition files can varied with different compilers ...).
+
+Note that to distinguish versions 32 or 64 bit of these compilers into CB, I decide to identify this by different naming
+during configuration with general menu "Settings" and after select submenu "Compilers". Example, MSVC 32 bit is identified 
+in internal into CB by name "Visual Studio 2022 X32" and MSVC 64 bit identified by "Visual Studio 2022 X64". Another 
+example with "Pelles C X32" versus "Pelles C X64", or "LCC (32b)" versus "LCC (64b)", etc... 
+This rule of naming of compilers into CB apply too to differentiate three versions of GCC provided with CYGWIN64 package 
+("native", MinGW32/64) and to distinguish version GCC 64 bit + UCRT provided by MSYS2 package (two other options are 
+MinGW32/64 + MSCRT).
+
+In this memo, we will review all syntax mandatory to achieve success build with previous list of C/C++ compilers, in
+respect of eigth internals commands defined into CB, and propose evolutions of these if necessary, or another suggestions
+to ameliorate detection of compilers on Win32 systems.
+
+A) With Borland C/C++ version 5.5.1 (last free version before buyout by Embarcadero)
+
+Normally, this compiler is automatically detected during startup of CB, default directory of installation
+is "C:\Borland\BCC55". On my configuarion, I have installed this product Borland shortly on directory 
+"C:\BCC55", but you can keep original default directory installation ...
+
+If it's not, you can configure into CB IDE an configuration adequate like this, after select main menu "Settings"
+then select submenu "Compilers..." and after select "Borland C++ Compiler (5.5, 5.82)" in list choice on top of open
+box opened.
+			
+Then, in subtab "Toolchain executables", you must type (in my environment, although adapt to your's) in field 
+"compiler's installation directory" : "C:\BCC55" (subdirectory "\bin" are automatically search under this), and
+you must type in each field proposed :
+
+	C compiler : 				bcc32.exe
+	C++ compiler : 				bcc32.exe
+	Linker for dynamic libs : 	ilink32.exe
+	Linker for static libs : 	tlib.exe
+	Debugger :					? 
+	Resource compiler :			brcc32.exe
+	Make program : 				make.exe
+
+Then, in subtab "Search directories", you must type in each subtab "Compiler", "Linker" and "Resource Compiler" 
+repectively :
+	Compiler : 				C:\BCC55\include	
+	Linker : 				C:\BCC55\lib\psdk and C:\BCC55\lib
+	Resource compiler : 	C:\BCC55\include
+	
+This last action is not mandatory if you use configuration files (stored in \bin subdirectory of BC55) like this :
+
+Modify "bcc32.cfg" file to look like this:
+
+-I"C:\Bcc55\include"
+-L"C:\Bcc55\lib\PSDK";"C:\Bcc55\lib"
+
+simmilar to "ilink32.cfg" :
+
+-L"C:\Bcc55\lib\PSDK";"C:\Bcc55\lib"
+	
+Principals format's syntax used by this compiler are :
+
+	1) to compile C or C++ source files (space separated command)		 
+		bcc32 [ options ] file[s]		(if compile only, generate .obj file, otion "-c" mandatory)
+	2) to link to executable (EXE/DLL) (comma separated command, only use if you make target with two passes : compile before and after link)
+		ilink32 [@<respfile>][<options>] <startup> <myobjs>, [<exefile>],[<mapfile>], [<libraries>], [<deffile>], [<resfiles>]
+	3) to compile resourcefile 			(space separated command)		 
+		brc32 [options ...] filename	
+		
+Just to illustrate generation of DLL in Win32 console (out of CB) with this compiler, below extract of command file :
+
+echo "************      Generation of DLL (only standard arithmetic operations on int and on float) in two passes      ***************"
+REM Format general of bcc32 command : BCC32 [ options ] file[s]  
+REM Options used with Borland compiler C/C++ 32 bits version 5.5.1 :
+REM		-c 								-> compile only, not call of linker
+REM		-q 								-> set to quiet mode (don't see copyrigth information)		
+REM 	-WDR							-> set generation to Windows DLL -WD (mandatory or not in two passes ?) and -WR to indicate that target uses the dynamic RTL
+REM 	-RT-							-> disable runtime type id (RTTI) (default is -RT)
+REM 	-x- 							-> disable exception handling 
+REM 	-Dxxxxxxxxxx 	 				-> define a variable xxxxxxxxxx used by BC55 precompiler
+bcc32 -c -q -WDR -RT- -x- -DBUILD_DLL -DNDEBUG src\dll_core.c 
+REM Format general of ilink32 command : 
+REM     ILINK32 [@<respfile>][<options>] <startup> <myobjs>, [<exefile>],[<mapfile>], [<libraries>], [<deffile>], [<resfiles>]  (comma separated list of files used by linker)
+REM 		<startup> can take values like : c0w32 for windows application (GUI), c0x32 for console application, or c0d32 for DLL application
+REM Options used with linker of Borland C/C++ compiler 32 bits version 5.5.1 :
+REM 	-Tpd							-> set the linker to generate DLL
+REM 	-aa 							-> set the linker to generate Windows 32 application (NT system or superior, like Windows 7, 8, 10 or 11)
+REM 	-x								-> enable exception handling
+REM 	/Gi    							-> option -Gi tell linker to generate .lib file, but nothing done. Change option to /Gi active generation of lib file.
+REM 	c0d32							-> Startup provide by Borland/Inprise for DLL (another startup obj, can be c0w32 for windows application (GUI), or c0x32 for console application)
+REM  At the end of this command's line of linker, you must/can indicate def file, option not possible with bcc32 command line during one pass generation (compil + linkage) !!!!! 
+echo "*****************    Edition des liens (linkage) de la DLL.      ***************"
+ilink32 -Tpd -aa -x -q /Gi c0d32 dll_core.obj,dll_core.dll,,import32 cw32i, src\dll_core.def
+REM    IMPLIB not mandatory, because option -Gi used by linker don't generate library file, but option /Gi do. Good surprise !!!
+REM implib -c dll_core.lib dll_core.dll
+echo.  ***************** 	       Listage des symboles exportes de la DLL 32 bits				*****************
+REM     Use of "tdump" utility" to extract export symbols of dll. It's fine : find symbols/functions with "_", but although without this prefix (thank's "def file" with alias)
+tdump -q -ee dll_core.dll 
+
+All previous internals commands used by CB are adapted to Borland C/C++ like this :
+
+	1) command : compile single file to object file 
+		$compiler -q $options $includes -o$object -c $file
+	2) command : generate dependencies for file
+		...     empty field     ...     no equivalent command available with BC55 that with GCC ...
+	3) command : compile Win32 resource file 
+		$rescomp -32 -fo$resource_output $res_includes $res_options $file
+	4) command : link object files to executable 				(or GUI executable on Win32 systems)
+		$linker -q -aa  $link_options $libdirs c0w32 $link_objects,$exe_output,,$libs,,$link_resobjects
+	5) command : link object files to console executable
+		$linker -q -ap  $link_options $libdirs c0x32 $link_objects,$exe_output,,$libs,,$link_resobjects
+	6) command : link object files to dynamic library
+		$linker -q $libdirs -Tpd $link_options $link_objects, $exe_output,, $libs,, $link_resobjects
+	7) command : link object files to static library
+		$lib_linker -r -s $static_output $link_objects
+	8) command : link object files to native executable 
+		$linker -q -ap  $link_options $libdirs c0x32 $link_objects,$exe_output,,$libs,,$link_resobjects
+
+Remark 1 : Last choice is redundant with command "link object files to console executable". Strange ... 
+		BC55 is able to construct "system" DLL on Windows NT, you must just add option "/Gz" during link :
+			/Gz 	Calculate checksum of target and insert result in PE header. 
+					Used for NT Kernel mode drivers and system DLLs. Default is Off.
+
+Remark 2 : Neither options added to construct import library or definition file during build of DLL.
+		Shame, it's possible to generate import library during this build by add "/Gi" option (Warning
+		"-Gi" don't work). And to generate definition file, BC55 provided tool to generate it "impdef" :
+			
+			Borland Impdef Version 3.0.22 Copyright (c) 1991, 2000 Inprise Corporation
+			Syntax: IMPDEF [options] destname[.def] srcname[.dll]
+			Options:
+					-a     Add '_' alias for MS flavor cdecl functions
+					-h     Emit hints
+		
+		It can be added by just this syntax : cmd /c impdef $exe_dir\$exe_name.def $exe_output in "Post
+		operations" after build DLL.
+
+Remark 3 : For third internal command (compile resource file), the option "-32" is the default. Why force 
+		it ?
+		
+Remark 4 : In real "world", it can be useful to use an definition file during linkage in "input" to authorize
+		alias (by example) of functions used into DLL (by example, alias to suppress prefix "_" with "cdecl" 
+		calling convention). With this, you can call function directly by it's name with script Python by example.
+		Syntax of BCC5 linker permit it, but this option is not implemented into internals commands of CB.
+		
+And to terminate, this compiler provided interesting tools like "grep","implib","impdef","make" (used by CMAKE 
+with this compiler by example),"makegen" and "tdump", and after research on Internet "ilink64"... (but without
+*.obj and *.lib adapted to 64 bit ...).
+
+You can also upgrade SDK provided by BC55 to less old version (dated mid 2008) by donwnloading project "bccsdk"
+from Sourceforge : https://sourceforge.net/projects/bccsdk/files/bccsdk/0.0.7.2/bccsdk_0_0_7_2.zip and, after
+decompress this into "C:\bccsdk" directory, change your configuration file "bcc32.cfg" and "ilink32.cfg" :
+
+Modify "bcc32.cfg" file to look like this :
+
+-I"C:\bccsdk\include";"C:\Bcc55\include"
+-L"C:\bccsdk\include\lib";"C:\Bcc55\lib\PSDK";"C:\Bcc55\lib"
+
+simmilar to "ilink32.cfg" :
+
+-L"C:\bccsdk\include\lib";"C:\Borland\Bcc55\lib\PSDK";"C:\Borland\Bcc55\lib"
+
+----------------------------------------------------------------------------------------------------------------	
+Suggestions to Team CB with this compiler :
+ 
+	1) I propose to suppress option "-32" (by default) with third internal command (compile resource file), 
+		then user can choice if he select another option (not in "hard coded" option). 
+			Accepted or not ?
+			
+	2) I propose to add two options "-Tpd" and "/Gi" during build target DLL with Borland C/C++ compiler, 
+		to generate import library by default, like with GCC.
+			Accepted or not ?
+			
+	3) I propose to study, if it's pertinent to modify internal command n° 5 (generate DLL file) by add   
+			"cmd /c impdef $exe_dir\$exe_name.def $exe_output"      to generate def file automatically.
+			Maybe add in "post-operations" too, but forgive by user is possible ...  
+			Accepted or not ?		
+			
+	4) I propose to study, if it's pertinent to add "command macro" like $def_input describe below 
+			Dynamic library DEF input file 			$def_input
+	   and use it in syntax associated to linkage beetween "$libs" and "$link_resobjects".
+	   Impact : it's seem mandatory to modify interface of CB during creation of DLL's project to add possibility
+	   to add this new "input file" during configuration.
+	   Just to precise, it's new possibility can be implemented with another compilers (in respect of syntax), not 
+	   just with BC55 on which this evolution only for it seem very too expensive.
+			Accepted or not ?
+			
+	5) I propose to add option "/Gz" during build target of "system" DLL (last internal command n° 8) with 
+		Borland C/C++ compiler. 
+			Accepted or not ?
+----------------------------------------------------------------------------------------------------------------
+
+B) With CLANG C/C++ compiler version 19.1.n  (compiler not detected automaticaly by CB ...)
+
+CLANG C/C++ compiler is modern implementation of C/C++ compiler based on new concepts oriented on "portability".
+It has been created after constat that GNU C/C++ compiler is become "a very big monolithic program", hard to update,
+hard to maintain (many platforms ARM/ARM64, PowerPC, and many languages supported Fortran, Ada, Objective C/C++, 
+etc...,) same if this "old" compiler has been essential because very used during long time, many years, and free.
+Don't forget that Kernel Linux are generated by this ... same if Rust begin to be used also to build this kernel.
+
+But, CLANG C/C++ compiler is unsuffisant to generate operational target on platforms like Windows (or Linux).
+It must be leaned with full development package to operate efficiently, like with GCC/MinGW (too it !) or like
+MSVC, last packages provided libraries and include files, and some tools, mandatory to success building.
+
+Warning, into CB, if you want configure this compiler, you must identify all binary's directories, all library's
+directory and all include's directories used by CLANG C/C++ but also used by leaned package choosen.
+
+Then to configure into CB IDE an configuration adequate like this, after select main menu "Settings" then select 
+submenu "Compilers..." and after select "GNU GCC Compiler" in list choice on top of open box opened if you want
+to use pair CLANG+MinGW to build target, or select "Microsoft Visual C++ 2022" (I rename "Microsoft Visual C++ 2017"
+to adapt with last Visual Studio 2022 Community (free) downloadable from site Microsoft) if you want to use 
+CLANG+MSVC to build targets
+
+1) First choice : use of pair CLANG+MinGW
+			
+After select "GNU GCC Compiler", you must rename it with "CLANG MSYS2 W64" (by example, if you choose CLANG leaned
+with MinGW64 integrated into MSYS2 64 bit installation). You can choose many implementation of MinGW, if you have
+beforehand installed "ad hoc" environment development MinGW32 into MSYS2 64bit, or if you have installed packages 
+WinLib (versions 32 and 64 bit), etc... 
+		
+Then, in subtab "Toolchain executables", you must type (in my environment, although adapt to your's) in field 
+"compiler's installation directory" : "C:\msys64\mingw64" (subdirectory "\bin" are automatically search under this), 
+and you must type in each field proposed :
+
+	C compiler : 				clang.exe
+	C++ compiler : 				clang++.exe
+	Linker for dynamic libs : 	clang++.exe
+	Linker for static libs : 	llvm-ar.exe
+	Debugger :					GDB/CDB (default debugger) 
+	Resource compiler :			windres.exe
+	Make program : 				mingw32-make.exe
+
+Then, in subtab "Search directories", you must type in each subtab "Compiler", "Linker" and "Resource Compiler" 
+repectively :
+	1) Compiler : 				C:\msys64\mingw64\lib\clang\19\include and C:\msys64\mingw64\x86_64-w64-mingw32\include 
+									and C:\msys64\mingw64\include
+	2) Linker : 				C:\msys64\mingw64\lib
+	3) Resource compiler : 		C:\msys64\mingw64\lib\clang\19\include and C:\msys64\mingw64\x86_64-w64-mingw32\include 
+									and C:\msys64\mingw64\include
+
+And just to be precise, you can also indicate this "plenty" list of directories outside of CB by use of environment
+variables. 
+
+First environment variable is :
+	- PATH into it you must indicate and list all directories used to access of binaries of tools used.
+And the two others are :
+	- CPATH, to list all directories used to access at "include" files used during your generation
+	- LIBRARY_PATH, to list all directories used to access at "libraries" files used during your generation
+			(static or shared libraries)
+	
+Syntax of major tools of CLANG C/C++ compiler is very verbose, but major options provided by GNU C/C++ are recognized
+with this compiler into command line (ex : "-c","-g","-I...","-L....","-o ...","-Wl,....","-D...","-m32|-m64" ...).
+		
+Just to illustrate generation of DLL in Win32 console (out of CB) with this compiler, below extract of command file :
+
+echo.  ******************          Compilation de la DLL en mode 64 bits en deux passes        *******************
+clang --version | grep "clang version"
+REM Options used with CLANG/LLVM compiler 64 bits (very similar with syntax of GCC compiler) :
+REM 	-Wall									-> set all warning during compilation
+REM		-c 										-> compile and assemble only, not call of linker
+REM 	-o dll_core64.obj 						-> output of object file indicated just after this option 
+REM 	-Dxxxxxx								-> define variable xxxxxx used by preprocessor of compiler CLANG C/C++
+REM		-m64									-> set compilation to X64 Architecture (64 bits)
+REM 	-IC:\msys64\mingw32\lib\clang\16\include -> set the include path directory (you can add many option -Ixxxxxxx to adapt your list of include path directories)  
+REM 				Remark 1 : You can replace option -m64 by -m32 to "force" compilation or linkage to X86 architecture, but warning, you must adapt list of library directories below during linkage
+echo.  ***************       Compilation de la DLL avec MSYS2  CLANG 64 bits                *****************
+clang -Wall -c -o dll_core64.obj src\dll_core.c -DBUILD_DLL -DNDEBUG -m64 -IC:\msys64\mingw64\lib\clang\19\include -IC:\msys64\mingw64\x86_64-w64-mingw32\include -IC:\msys64\mingw64\include
+REM Options used with linker CLANG/LLVM 64 bits (very similar with syntax of gcc compiler) :
+REM 	-s 										-> "s[trip]", remove all symbol table and relocation information from the executable (reduce zize od DLL, but can be restrictive with some "dll" tools)
+REM		-shared									-> generate a shared library => on Window, generate a DLL (Dynamic Linked Library)
+REM		-m64									-> set linkage to X64 Architecture (64 bits)
+REM 	-LC:\msys64\mingw64\lib					-> -Lxxxxxxx set library path directory to xxxxxxxx (you can add many option -Lxxxxxxx to adapt your list of library path directories)  
+REM		-Wl,--output-def=dll_core64.def  		-> set the output definition file, normal extension is xxxxx.def
+REM		-Wl,--out-implib=libdll_core.a 			-> set the output library file. On Window, you can choose library name beetween "normal name" (xxxxx.lib), or gnu library name (libxxxxx.a)
+REM		-Wl,--dll								-> -Wl,... set option ... to the linker, here determine subsystem to windows DLL (redundant with option "-shared" ?)
+REM 	-o dll_core64.dll						-> set output of executable file indicated just after this option, here relative name of DLL
+REM		-lkernel32 -luser32						-> -lxxxxxxxx set library used by linker to xxxxxxxxx (you can add many option -lxxxxxx to adapt your list of libraries used during link)
+echo.  ***************          Edition de liens de la DLL avec MSYS2  CLANG 64 bits        *******************
+clang -s -shared  -m64 -LC:\msys64\mingw64\lib -LC:\msys64\mingw64\x86_64-w64-mingw32\lib -Wl,--output-def=dll_core64.def -Wl,--out-implib=libdll_core64.dll.a -Wl,--dll -o dll_core64.dll -lkernel32 -luser32 dll_core64.obj 
+REM 		To control list of export symbols/functions 
+type dll_core64.def
+
+With these configuration, as you proceed by a rename of GNU C/C++ Compiler, all internals commands are 
+similars like GCC, and resource compiler is same tool "windres" (I'm not tested with "llvm-rc" tool) :
+
+	1) command : compile single file to object file 
+		$compiler $options $includes -c $file -o $object
+	2) command : generate dependencies for file
+		$compiler -MM $options -MF $dep_object -MT $object $includes $file
+	3) command : compile Win32 resource file 
+		$rescomp $res_includes $res_options -J rc -O coff -i $file -o $resource_output
+	4) command : link object files to executable 				(or GUI executable on Win32 systems)
+		$linker $libdirs -o $exe_output $link_objects $link_resobjects $link_options $libs -mwindows
+	5) command : link object files to console executable
+		$linker $libdirs -o $exe_output $link_objects $link_resobjects $link_options $libs
+	6) command : link object files to dynamic library
+		$linker -shared -Wl,--output-def=$def_output -Wl,--out-implib=$static_output -Wl,--dll $libdirs  \
+				$link_objects $link_resobjects -o $exe_output $link_options $libs
+	7) command : link object files to static library
+		cmd /c if exist $static_output del $TO_WINDOWS_PATH{$static_output}
+		$lib_linker -r -s $static_output $link_objects
+	8) command : link object files to native executable 
+		$linker $libdirs -o $exe_output $link_objects $link_resobjects $link_options $libs -Wl,--subsystem,native
+
+And to terminate, LLVM/CLANG provide many interesting tools like "llvm-cxxfilt", "llvm-lib", "llvm-link", "llvm-rc"
+and it equivalent "llvm-windres", "llvm-undname", "llvm-strip" and "llvm-dlltool" illustred by example after :
+
+******************************************************************************************************************
+To produce an import library that is similar to the one generated by Microsoft's link.exe, and if you have an  
+definition file described the symbols exported of DLL, you can use llvm-dlltool like (part of the LLVM compiler 
+project) :
+
+llvm-dlltool -m i386:x86-64 -d foo.def -l foo.lib  (substitute i386:x86-64 for i386 if you would like to create a 
+	32-bit library)
+******************************************************************************************************************
+
+----------------------------------------------------------------------------------------------------------------
+Suggestions to Team CB with these compilers CLANG + MinGW32/64 : 
+
+I think that it's interesting to automatically detect presence of of these ompilers during startup of CB.
+From here, if configuration of CLANG C/C++ compilers respect installation directory by default, presence
+of binaries like "clang.exe" can be detect into (you can conserve all options provided by GNU C/C++ compiler) :
+
+		C:\msys64\mingw32\bin 				to pair CLANG+MINGW32 -> CLANG leaned with MinGW32 included in MSYS2
+		C:\msys64\mingw64\bin				to pair CLANG+MINGW64 -> CLANG leaned with MinGW64 included in MSYS2 		
+		C:\mingw32\bin  					to pair CLANG+MINGW32 -> CLANG leaned with MinGW32 installation by WinLibs
+		C:\mingw64\bin  					to pair CLANG+MINGW64 -> CLANG leaned with MinGW64 installation by WinLibs
+			Accepted or not ?
+----------------------------------------------------------------------------------------------------------------
+			
+2) Second choice : use of pair CLANG+MSVC
+
+In this case, it's mandatory to install, after VS2022 and SDK Windows adapted to your system, release kit of LLVM 
+from site :
+	https://github.com/llvm/llvm-project/releases  (not release from Download Page of LLVM ... not updated).
+ 
+"Structure" of directories to configure this compiler into CB depend on n° version of each components :
+
+		n° version of Visual Studio, here 						"2022"
+		n° version of Visual C/C++ included in Visual Studio	"14.43.34808"   (that can progress after use 
+																	of updater tool "Visual Studio Installer")
+		n° version of ident system of Kit Windows, here 		"10"			(same on W11 systems !)
+		n° version of ident kit installed, here					"10.0.26100.0"  (that can progress after use 
+																	of updater tool "Visual Studio Installer")
+		n° version of LLVM/CLANG package, here 					"19.1.7" 	(last version, but many in future)
+		
+I choose to use environment variables on my Windows 11 configuration to simply adapt to evolutions of these versions
+during time by define respectively :
+		VS_VERSION, VS_NUM, KIT_VERSION, KIT_NUM and CLANG_VERSION    with adequate values ...
+		
+and also, two variables to distinguish beetwwen 32 and 64 bits installation directories of LLVM like this 
+		LLVM32   		C:\Program Files (x86)\LLVM	  
+		LLVM64		    C:\Program Files\LLVM
+
+After select "Visual Studo 2022 X64" (by example, it's the name of my configuration VS2022) into IDE CB, you must 
+copy firest and after rename it with new ident "CLANG MSVC X64" (by example, if you choose CLANG leaned with MSVC 
+64 bit).
+
+Then, you must position into different subtabs to configure this new compiler into CB :
+
+In subtab "Toolchain executables", you must type value indicate after :
+
+	%LLVM64% (subdirectory .\bin search automatically to access binaries, change to %LLVM32% if you want to use version 32 bit)
+	compilateur C : 			clang-cl.exe			
+	compilateur C++ : 			clang-cl.exe					(with specific option or specific library added, see Remark below) 
+	linker for dynamic lib : 	clang-cl.exe
+	linker for static lib : 	llvm-ar.exe
+	debugger :					gdb.exe
+	resource compiler :			llvm-rc.exe			(note : in this context, use of "resource compiler" proper to package LLVM/CLANG)
+	make program : 				?
+
+An in subatb "Search directories", you must indicate into each proposition, the values after :
+
+	Compiler : 				%LLVM64%\lib\clang\%CLANG_VERSION%\include				  		  and
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\shared    and
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\ucrt      and
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\um		  and
+								C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\include
+	Linker : 				%LLVM64%\lib\clang\%CLANG_VERSION%\lib\windows			  		  and
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\lib\%KIT_NUM%\um\x64		  and
+								C:\Program Files (x86)\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\lib\x64
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\lib\%KIT_NUM%\ucrt\x64	  and
+								C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\lib\x64\store
+								(adapt these directories to use 32 bit version : change x64 to x86)
+	Resource compiler : 	%LLVM64%\lib\clang\%CLANG_VERSION%\include				  		  and
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\shared    and 
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\ucrt      and
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\um		  and
+								C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\include
+
+Adapt these configurations at your "real" context, especially if you don't use environment variables.
+
+Remark : you can use "clang-cl.exe" to compile C++ source code like example after (compare three solutions to achieve this with CLANG) :
+		Solution 1 (natural generation) :	clang++ your.cpp
+		Solution 2 :				clang-cl your.cpp -lstdc++	(into IDE CB, you must add this library to force C++ compilation)
+		Solution 3 :				clang-cl -x c++ your.cpp	(into IDE CB, you must add this option to force C++ compilation)
+
+Into CB, I select Solution n° 2 because it's simple to add this library, same with compile of C source code (not used in this case).
+ 
+In this configuration, major options used by GNU C/C++ compiler are recognized with this compiler into command line
+with use of "clang.exe" (or "clang-cl.exe") (ex : "-c","-g","-I...","-L....","-o ...","-Wl,....","-D...","-m32|m64" ...).
+
+But also, if you use directly "wrapper" "clang-cl.exe", you can use major options used by MSVC compiler indicated after : 
+
+CL.EXE COMPATIBILITY OPTIONS:
+  /?                      Display available options
+  /arch:<value>           Set architecture for code generation
+  /arm64EC                Set build target to arm64ec
+  /Brepro-                Write current time into COFF output (default)
+  /Brepro                 Do not write current time into COFF output (breaks link.exe /incremental)
+  /clang:<arg>            Pass <arg> to the clang driver
+  /C                      Do not discard comments when preprocessing
+  /c                      Compile only
+  /d1PP                   Retain macro definitions in /E mode
+  /d1reportAllClassLayout Dump record layout information
+  /diagnostics:caret      Enable caret and column diagnostics (default)
+  /diagnostics:classic    Disable column and caret diagnostics
+  /diagnostics:column     Disable caret diagnostics but keep column info
+  /diasdkdir <dir>        Path to the DIA SDK
+  /D <macro[=value]>      Define macro
+  /EH<value>              Set exception handling model
+  /EP                     Disable linemarker output and preprocess to stdout
+  /execution-charset:<value>
+                          Set runtime encoding, supports only UTF-8
+  /external:env:<var>     Add dirs in env var <var> to include search path with warnings suppressed
+  /external:I <dir>       Add directory to include search path with warnings suppressed
+  /external:W0            Ignore warnings from system headers (default)
+  /external:W1            Enable -Wsystem-headers
+  /external:W2            Enable -Wsystem-headers
+  /external:W3            Enable -Wsystem-headers
+  /external:W4            Enable -Wsystem-headers
+  /E                      Preprocess to stdout
+  /FA<value>              Output assembly code file during compilation
+  /Fa<file or dir/>       Set assembly output file name (with /FA)
+  /Fe<file or dir/>       Set output executable file name
+  /FI <value>             Include file before parsing
+  /Fi<file>               Set preprocess output file name (with /P)
+  /Fo<file or dir/>       Set output object file (with /c)
+  /Fp<file>               Set pch file name (with /Yc and /Yu)
+  /fsanitize=address      Enable AddressSanitizer
+  /GA                     Assume thread-local variables are defined in the executable
+  /Gd                     Set __cdecl as a default calling convention
+  /GF-                    Disable string pooling
+  /GF                     Enable string pooling (default)
+  /GR-                    Do not emit RTTI data
+  /Gregcall4              Set __regcall4 as a default calling convention to respect __regcall ABI v.4
+  /Gregcall               Set __regcall as a default calling convention
+  /GR                     Emit RTTI data (default)
+  /Gr                     Set __fastcall as a default calling convention
+  /GS-                    Disable buffer security check
+  /GS                     Enable buffer security check (default)
+  /Gs                     Use stack probes (default)
+  /Gs<value>              Set stack probe size (default 4096)
+  /guard:<value>          Enable Control Flow Guard with /guard:cf, or only the table with /guard:cf,nochecks. Enable EH Continuation Guard with /guard:ehcont
+  /Gv                     Set __vectorcall as a default calling convention
+  /Gw-                    Do not put each data item in its own section (default)
+  /Gw                     Put each data item in its own section
+  /GX-                    Deprecated (like not passing /EH)
+  /GX                     Deprecated; use /EHsc
+  /Gy-                    Do not put each function in its own section (default)
+  /Gy                     Put each function in its own section
+  /Gz                     Set __stdcall as a default calling convention
+  /help                   Display available options
+  /hotpatch               Create hotpatchable image
+  /imsvc <dir>            Add <dir> to system include search path, as if in %INCLUDE%
+  /I <dir>                Add directory to include search path
+  /JMC-                   Disable just-my-code debugging (default)
+  /JMC                    Enable just-my-code debugging
+  /J                      Make char type unsigned
+  /LDd                    Create debug DLL
+  /LD                     Create DLL
+  /link <options>         Forward options to the linker				(like /LIBPATH:xxxxxx by example or /MACHINE:X86|X64 or /DEBUG, etc...)
+  /MDd                    Use DLL debug run-time
+  /MD                     Use DLL run-time
+  /MTd                    Use static debug run-time
+  /MT                     Use static run-time
+  /O1                     Optimize for size  (like /Og     /Os /Oy /Ob2 /GF /Gy)
+  /O2                     Optimize for speed (like /Og /Oi /Ot /Oy /Ob2 /GF /Gy)
+  /Ob0                    Disable function inlining
+  /Ob1                    Only inline functions explicitly or implicitly marked inline
+  /Ob2                    Inline functions as deemed beneficial by the compiler
+  /Ob3                    Same as /Ob2
+  /Od                     Disable optimization
+  /Og                     No effect
+  /Oi-                    Disable use of builtin functions
+  /Oi                     Enable use of builtin functions
+  /openmp-                Disable OpenMP support
+  /openmp:experimental    Enable OpenMP support with experimental SIMD support
+  /openmp                 Enable OpenMP support
+  /Os                     Optimize for size (like clang -Os)
+  /Ot                     Optimize for speed (like clang -O3)
+  /Ox                     Deprecated (like /Og /Oi /Ot /Oy /Ob2); use /O2
+  /Oy-                    Disable frame pointer omission (x86 only, default)
+  /Oy                     Enable frame pointer omission (x86 only)
+  /O<flags>               Set multiple /O flags at once; e.g. '/O2y-' for '/O2 /Oy-'
+  /o <file or dir/>       Deprecated (set output file name); use /Fe or /Fe
+  /permissive-            Disable non conforming code from compiling (default)
+  /permissive             Enable some non conforming code to compile
+  /P                      Preprocess to file
+  /Qgather-               Disable generation of gather instructions in auto-vectorization(x86 only)
+  /QIntel-jcc-erratum     Align branches within 32-byte boundaries to mitigate the performance impact of the Intel JCC erratum.
+  /Qscatter-              Disable generation of scatter instructions in auto-vectorization(x86 only)
+  /Qvec-                  Disable the loop vectorization passes
+  /Qvec                   Enable the loop vectorization passes
+  /showFilenames-         Do not print the name of each compiled file (default)
+  /showFilenames          Print the name of each compiled file
+  /showIncludes:user      Like /showIncludes but omit system headers
+  /showIncludes           Print info about included files to stderr
+  /source-charset:<value> Set source encoding, supports only UTF-8
+  /std:<value>            Set language version (c++14,c++17,c++20,c++latest,c11,c17)
+  /TC                     Treat all source files as C
+  /Tc <file>              Treat <file> as C source file
+  /TP                     Treat all source files as C++
+  /Tp <file>              Treat <file> as C++ source file
+  /tune:<value>           Set CPU for optimization without affecting instruction set
+  /utf-8                  Set source and runtime encoding to UTF-8 (default)
+  /U <macro>              Undefine macro
+  /vctoolsdir <dir>       Path to the VCToolChain
+  /vctoolsversion <value> For use with /winsysroot, defaults to newest found
+  /vd<value>              Control vtordisp placement
+  /vmb                    Use a best-case representation method for member pointers
+  /vmg                    Use a most-general representation for member pointers
+  /vmm                    Set the default most-general representation to multiple inheritance
+  /vms                    Set the default most-general representation to single inheritance
+  /vmv                    Set the default most-general representation to virtual inheritance
+  /W0                     Disable all warnings
+  /W1                     Enable -Wall
+  /W2                     Enable -Wall
+  /W3                     Enable -Wall
+  /W4                     Enable -Wall and -Wextra
+  /Wall                   Enable -Weverything
+  /winsdkdir <dir>        Path to the Windows SDK
+  /winsdkversion <value>  Full version of the Windows SDK, defaults to newest found
+  /winsysroot <dir>       Same as "/diasdkdir <dir>/DIA SDK" /vctoolsdir <dir>/VC/Tools/MSVC/<vctoolsversion> "/winsdkdir <dir>/Windows Kits/10"
+  /WX-                    Do not treat warnings as errors (default)
+  /WX                     Treat warnings as errors
+  /w                      Disable all warnings
+  /X                      Do not add %INCLUDE% to include search path
+  /Y-                     Disable precompiled headers, overrides /Yc and /Yu
+  /Yc<filename>           Generate a pch file for all code up to and including <filename>
+  /Yu<filename>           Load a pch file and use it instead of all code up to and including <filename>
+  /Z7                     Enable CodeView debug information in object files
+  /Zc:__STDC__            Define __STDC__
+  /Zc:alignedNew-         Disable C++17 aligned allocation functions
+  /Zc:alignedNew          Enable C++17 aligned allocation functions
+  /Zc:char8_t-            Disable char8_t from c++2a
+  /Zc:char8_t             Enable char8_t from C++2a
+  /Zc:dllexportInlines-   Do not dllexport/dllimport inline member functions of dllexport/import classes
+  /Zc:dllexportInlines    dllexport/dllimport inline member functions of dllexport/import classes (default)
+  /Zc:sizedDealloc-       Disable C++14 sized global deallocation functions
+  /Zc:sizedDealloc        Enable C++14 sized global deallocation functions
+  /Zc:strictStrings       Treat string literals as const
+  /Zc:threadSafeInit-     Disable thread-safe initialization of static variables
+  /Zc:threadSafeInit      Enable thread-safe initialization of static variables
+  /Zc:trigraphs-          Disable trigraphs (default)
+  /Zc:trigraphs           Enable trigraphs
+  /Zc:twoPhase-           Disable two-phase name lookup in templates (default)
+  /Zc:twoPhase            Enable two-phase name lookup in templates
+  /Zc:wchar_t-            Disable C++ builtin type wchar_t
+  /Zc:wchar_t             Enable C++ builtin type wchar_t (default)
+  /ZH:MD5                 Use MD5 for file checksums in debug info (default)
+  /ZH:SHA1                Use SHA1 for file checksums in debug info
+  /ZH:SHA_256             Use SHA256 for file checksums in debug info
+  /Zi                     Like /Z7
+  /Zl                     Do not let object file auto-link default libraries
+  /Zp                     Set default maximum struct packing alignment to 1
+  /Zp<value>              Set default maximum struct packing alignment
+  /Zs                     Run the preprocessor, parser and semantic analysis stages
+
+Like you have rename this compiler into CB from "Visual Studio 2022 X64", then into configuration of compiler 
+options, interface of CB IDE propose to select directly options listed before. But, you can also added 
+"specific options" of GCC in subtab "Other compiler options" or in zone "Other linker options". Nice, no?
+
+Just to illustrate this, you can see how construct DLL with command lines using this configuration (environment variables
+PATH, INCLUDE and LIB are positioned with list of directories "ad hoc") :
+
+echo.  ******************             Compilation de la DLL en mode 64 bits               *******************
+clang --version
+REM Options used with CLANG/LLVM compiler 64 bits (very similar with syntax of Visual C/C++ compiler) :
+REM 	/Wall								-> set all warning during compilation
+REM		/c 									-> compile and assemble only, not call of linker
+REM 	/Dxxxxxx							-> define variable xxxxxx used by preprocessor of compiler CLANG C/C++
+REM 	/Fodll_core.obj 					-> output of object file indicated just after this option 
+echo.  ***************       Compilation de la DLL avec CLANG 32 bits + Visual C/C++ + Kits Windows.             *****************
+clang-cl /Wall /c /DBUILD_DLL /DNDEBUG src\dll_core.c /Fodll_core64.obj 
+REM Options used with linker CLANG/LLVM 64 bits (very similar with syntax of Visual C/C++ compiler) :
+REM		/LD									-> generate a shared library => on Window, generate a DLL (Dynamic Linked Library)
+REM		/MT                     			-> Use static run-time  
+echo.  ***************          Edition de liens de la DLL avec CLANG 64 bits + Visual C/C++ + Kits Windows.     *******************
+clang-cl /LD /MT /Fedll_core64.dll dll_core64.obj 
+echo.  ***************              Listage des fonctions exportees de la DLL                                   *******************
+REM  	Dump result with command "dumpbin" to see/verify exported symbols of dll
+dumpbin /exports  dll_core64.dll
+
+----------------------------------------------------------------------------------------------------------------
+Suggestions to Team CB with this compiler : 
+
+I think that it's interesting to automatically detect presence of these ompilers during startup of CB.
+From here, if configuration of CLANG C/C++ compilers respect installation directory by default, presence
+of binaries like "clang.exe" can be detect into (you can conserve all options provided by MSVC compiler) :
+
+		C:\Program Files (x86)\LLVM\bin 	to pair CLANG+MSVC X32 -> CLANG leaned with MSVC and Kit Windows, 32 bit
+		C:\Program Files\LLVM\bin 			to pair CLANG+MSVC X64 -> CLANG leaned with MSVC and Kit Windows, 64 bit		
+			Accepted or not ?
+----------------------------------------------------------------------------------------------------------------
+			
+C) With three compilers GNU C/C++ included in CYGWIN64 (one compiler detected automaticaly by CB, but not two others)
+
+Three GCC compilers are potentially present into CYGWIN64 version 64 bits, with additional installations of MinGW32 
+and MinGW64 package, and also tool "make" (needed to CMAKE "build" by example, version DLL cygwin1.dll : 3.5.7, 
+date : january 2025) :
+	
+	- Ident of compiler : "x86_64-w64-pc-gcc" ou "gcc" directly ("native" version of GCC on Cygwin) 12.4.0 (64 bit), 
+	- InstalledDir : 			C:/Cygwin64/bin
+	- Identification of this compiler by preprocessor : __GNUC__ and __CYGWIN__ 
+	
+	- Ident of compiler : "i686-w64-mingw32-gcc" (GCC of MinGW32) 12.4.0 (32 bit), 
+	- InstalledDir : 			C:/Cygwin64/bin,
+	- Identification of this compiler by preprocessor : __GNUC__ and __MINGW32__
+	
+	- Ident of compiler : "x86_64-w64-mingw32-gcc" (GCC of MinGW64) 12.4.0 (64 bit),
+	- InstalledDir : 			C:/Cygwin64/bin
+	- Identification of this compiler by preprocessor : __GNUC__ and __MINGW64__ 
+	
+With all of three versions, you can generate Win32 applications, and with first you can also generate Posix application.
+And, with the first compiler, you can also generate application like on Linux systems, as with X11/Xorg graphic interface. 
+	
+Normally, IDE CB detect presence of first compiler automatically, but if not, you can configure all three compilers by 
+renaming "GNU GCC Compiler" three times like this : "Cygwin natif GCC 64", after "Cygwin GCC 32" and Cygwin GCC 64" by
+example (general menu "Settings" and after submenu "Compilers", and select good model of compiler at the top of the box).
+
+After, you must force and type new values to different fields into subtab "Toolchain executables" and into subtab 
+"Search directories" like this (I add voluntarily subdirectories \w32api into Search directories of "include" and "lib"
+to permit generation of Win32 application with all of these compilers) :
+
+Toolchain executables (to version "native" GCC of Cygwin64) :
+	C:\cygwin64 (subdirectory \bin search automatically)
+	Compiler C : 				gcc.exe 
+	Compiler C++ : 				g++.exe
+	Linker for dynamic lib : 	g++.exe  (idem)
+	Linker for static lib : 	ar.exe
+	Debugger :					gdb.exe
+	Resource compiler :			windres.exe
+	Make program : 				make.exe       (warning "make" is not installed by défault, it must be added with update tool)
+
+Search directories (to version "native" GCC of Cygwin64) :
+	a) compiler : 				C:\cygwin64\usr\include\w32api 	and C:\cygwin64\usr\include
+	b) linker : 				C:\cygwin64\lib\w32api 	 		and C:\cygwin64\lib
+	a) resource compiler : 		C:\cygwin64\usr\include\w32api 	and C:\cygwin64\usr\include
+			
+Toolchain executables (to version GCC include in MinGW32 of Cygwin64) :
+	C:\cygwin64 (subdirectory \bin search automatically)
+	Compiler C : 				i686-w64-mingw32-gcc.exe 
+	Compiler C++ : 				i686-w64-mingw32-g++.exe
+	Linker for dynamic lib : 	i686-w64-mingw32-g++.exe  (idem)
+	Linker for static lib : 	i686-w64-mingw32-ar.exe
+	Debugger :					gdb.exe
+	Resource compiler :			i686-w64-mingw32-windres.exe
+	Make program : 				make.exe
+
+Search directories (to version GCC include in MinGW32 of Cygwin64) :
+	a) compiler : 				C:\cygwin64\usr\i686-w64-mingw32\sys-root\usr\include\w32api 
+											and    C:\cygwin64\usr\i686-w64-mingw32\sys-root\usr\include
+	b) linker : 				C:\cygwin64\usr\i686-w64-mingw32\sys-root\usr\lib\w32api 	 
+											and    C:\cygwin64\usr\i686-w64-mingw32\sys-root\usr\lib
+	a) resource compiler : 		C:\cygwin64\usr\i686-w64-mingw32\sys-root\usr\include\w32api 
+											and    C:\cygwin64\usr\i686-w64-mingw32\sys-root\usr\include
+
+Toolchain executables (to version GCC include in MinGW64 of Cygwin64) :
+	C:\cygwin64 (subdirectory \bin search automatically)
+	compilateur C : 			x86_64-w64-mingw32-gcc.exe 
+	compilateur C++ : 			x86_64-w64-mingw32-g++.exe
+	linker for dynamic lib : 	x86_64-w64-mingw32-g++.exe  (idem)
+	linker for static lib : 	x86_64-w64-mingw32-ar.exe
+	debugger :					gdb.exe
+	resource compiler :			x86_64-w64-mingw32-windres.exe
+	make program : 				make.exe
+
+Search directories (to version GCC include in MinGW64 of Cygwin64) :
+	a) compiler : 				C:\cygwin64\usr\x86_64-w64-mingw32\sys-root\usr\include\w32api 
+											and    C:\cygwin64\usr\x86_64-w64-mingw32\sys-root\usr\include
+	b) linker : 				C:\cygwin64\usr\x86_64-w64-mingw32\sys-root\usr\lib\w32api     
+											and    C:\cygwin64\usr\x86_64-w64-mingw32\sys-root\usr\lib
+	a) resource compiler : 		C:\cygwin64\usr\x86_64-w64-mingw32\sys-root\usr\include\w32api 
+											and    C:\cygwin64\usr\x86_64-w64-mingw32\sys-root\usr\include
+											
+Like with CLANG leaned with MinGW32/64, you can also indicate this "plenty" list of directories outside of CB 
+by use of environment variables PATH, CPATH and LIBRARY_PATH. 
+							
+Just to illustrate, here you can see how construct an DLL with command line with MinGW64 included in Cygwin64 with 
+environment variables PATH, CPATH and LIBRARY_PATH positioned for this version of compiler :
+
+echo. ******************          Compilation de la DLL en mode 64 bits        *******************
+REM     Options used by GCC compiler 64 bits of MingW64 included in CYGWIN64
+REM 		-c       					Option to impose compile only
+REM 		-Dxxxxx	 					Define variable xxxxxx used by precompiler
+REM 		-o xxxxx 					Define output file generated by GCC compiler, here object file
+x86_64-w64-mingw32-gcc.exe -c src\dll_core.c -DBUILD_DLL -DNDEBUG -o dll_core64.o
+echo. *****************           Edition des liens .ie. linkage de la DLL.        ***************
+REM     Options used by linker of gcc compiler
+REM 		-static-libgcc 				Suppress dependance of cygwin1.dll to generate "portable" DLL (or executable)
+REM 		-shared						Set option to generate shared library .ie. on windows systems DLL
+REM 		-o xxxxx 					Define output file generated by GCC compiler, here dll file
+REM 		-Wl,xxxxxxxx				Set options to linker : here, first option to generate windows compatible DLL, second option to generate lib file 
+x86_64-w64-mingw32-gcc.exe -static-libgcc -shared -o dll_core64.dll -Wl,--subsystem,windows -Wl,--out-implib,libdll_core64.dll.a -Wl,--output-def=dll_core64.def  dll_core64.o 
+REM   Another tool can be use, but here not   : "gendef - dll_core64.dll > dll_core64.def" -> Show list of exported symbols from a library/exe/obj/dll 
+echo. ************     				 Dump des sysboles exportes de la DLL in file dll_core64.dll      				  *************
+type dll_core64.def 
+
+Note that dependency of dll "cygwin1.dll" is only implemented with "native" version of GCC compiler into Cygwin 64 bits 
+on Windows 64 bits, not with MinGW32/64 versions of GCC compiler. In previous command file, option "-static-libgcc" can 
+be suppress !
+ 
+Extract of discution after explain how to use an "def file" to construct DLL in input of GCC like compilers :
+
+********************************************************************************************************************** 
+What functions are exported when build dll using Mingw gcc on Win32 systems ?
+Date : June 27, 2024	
+
+If you build a dll using Mingw g++ like:
+
+g++ -shared -o myprogrammingnotes.dll myprogrammingnotes.cpp
+
+If __declspec(dllexport) is not present in the source file, all functions except the entry point function(DllMain) in 
+myprogrammingnotes.cpp will be exported by name.
+
+If __declspec(dllexport) is present in the source file, the functions decorated by __declspec(dllexport) will be 
+exported by name, while those functions without __declspec(dllexport) will not be exported. 
+You can decorate DllMain with __declspec(dllexport) to export it, too.
+
+You can also use .def to specify which functions are to be exported. 
+Then, the functions decorated by __declspec(dllexport) plus the functions specified in .def are exported.
+
+    //mydll.def
+    EXPORTS  
+       Sum   @2  
+
+how to use the .def file with Mingw g++?
+
+g++ -shared -o mydll.dll mydll.cpp mydll.def
+
+If you want to export a function by ordinal rather than by name, you can use the NONAME attribute in .def file like
+
+    //mydll.def
+    EXPORTS  
+       Sum   @2  NONAME
+
+You can specify the ordinal for a function in .def (the number after @). The ordinal must be 1 or bigger. The least 
+number will become the ordinal base in the image. 
+The ordinals may be not continuous, in which case, NULL entries will occur in the export address table of the dll.
+**********************************************************************************************************************
+
+----------------------------------------------------------------------------------------------------------------
+Suggestions to Team CB with GCC compiler and all of these derivatives (various MinGW32/64, TDM32/64, and CLANG leaned 
+with GCC inluded in "various" MinGW32/64) : 
+
+Like with BC55, I propose to study, if it's pertinent to add "command macro" like $def_input describe after 
+				Dynamic library DEF input file 			$def_input
+	and use it new syntax describe after during linkage of DLL with all of these compilers :
+	6) "new" internal command : link object files to dynamic library
+		$linker -shared -Wl,--output-def=$def_output -Wl,--out-implib=$static_output -Wl,--dll $libdirs  \
+				$link_objects $link_resobjects -o $exe_output $link_options $libs $def_input
+			Accepted or not ?
+
+And, just to verify, options "-shared" and "-Wl,--dll" are n't redundant on Win32 systems ?
+	I don't use "-Wl,--dll" with GCC included in Cygwin64 by example, and it work nice !
+	I propose to suppress it, except if this option is mandatory with "old" version of GCC.
+				Accepted or not ?
+----------------------------------------------------------------------------------------------------------------
+				
+NB : Example of build DLL after seem accepted only "-shared" option, like with my configuration  -) :
+
+************************************************************************************************************************
+    Compilation of your object files:
+
+    g++ -O0 -gdwarf-4 dll\dllmain.cpp -c -o dllmain.o
+
+    Linking (-Wl,--exclude-all-symbols is important):
+
+    g++ -Wl,--enable-auto-import -Wl,--out-implib,libsomelib.a -Wl,--exclude-all-symbols -shared dllmain.o -o somelib.dll
+
+Then you choose which functions to export directly in source code of your DLL (content of file "dllmain.cpp") :
+
+#include <windows.h>
+
+__declspec(dllexport) void someExportedFunction() {
+    MessageBox(NULL, "msgbox", "msgbox", MB_OK);
+}
+
+void nonExportedFunction() {
+    MessageBox(NULL, "notexported", "notexported", MB_OK);
+}
+
+Note added by TDE : But, if you want call "NonExportedFunction" nevertheless ..., then you can add during linkage an def file like :
+
+    //dllmain.def
+    EXPORTS  
+       NonExportedFunction  @1
+	   
+And rerun :
+	g++ -Wl,--enable-auto-import -Wl,--out-implib,libsomelib.a -Wl,--exclude-all-symbols -shared dllmain.o -o somelib.dll dllmain.def
+	
+WARNING : Not tested, but it seems possible ... 
+		Study behaviour of GCC in presence of option "-Wl,--exclude-all-symbols" : Is it higth priority with def file in input or not ?  
+************************************************************************************************************************
+
+D) With Digital Mars Compiler
+
+Note that this compiler is very old and that it manage library only at internal format OMF (like BC55), then someone
+tools can be used beetween these two compilers to tranform by example static library or import library to COFF to OMF.
+ 
+Normally CB detect durting his startup presence of these compiler. As usual, you can configure it manually by force 
+values of fields :
+
+Toolchain executables : 
+	C:\dm (search into subdirectory \bin automatically)
+	Compiler C : 				dmc.exe
+	Compiler C++ : 				dmc.exe
+	Linker for dynamic lib : 	link.exe
+	Linker for static lib : 	lib.exe
+	Debugger :					 
+	Resource compiler :			rcc.exe
+	Make program : 				make.exe 
+
+Search directories :
+	a) compiler : 				C:\dm\include\win32 and C:\dm\stlport\stlport (if you wish use C++) and C:\dm\include	
+	b) linker : 				C:\dm\lib
+	a) resource compiler : 		C:\dm\include\win32 and C:\dm\include
+	
+And format's syntax of principals tools are :
+
+	Compiler :				dmc file... [flags...] [@respfile] 
+	Linker :				link [options] obj[,out[,map[,lib[,def[,res]]]]]
+	Resource compiler :		rcc input [-ooutput] [-n[enum file]] {-D[macro[=text]]}
+								{-(uvwx)[-]} {-Ipath} [-j[012]] [-32[-]] [-lnnnn]
+	Linker for static lib : lib options... libfile objfiles...
+
+Just to illustrate, you can see instructions needed to construct an DLL on Windows with this compiler after :
+
+echo.  ******************                Compilation de la DLL                   *******************
+REM Options used with Digital Mars Compiler compiler 32 bits version 8.57 :
+REM		-v0								-> set level of verbose to 0 (like quiet mode).
+REM		-c 								-> compile only, not call of linker
+REM		-Ab 							-> enable usage of boolean/bool into C code			
+REM 	-Bf								-> set message language French, option -Be to English
+REM 	-WD  							-> set generation to Windows DLL  (another option -WA to generate GUI Windows Application, and nothing to generate console application)
+REM 	-mn  							-> absolutly MANDATORY : determine platforms supported, here Windows 32s/95/98/NT/2000/ME/XP    (and ulterior Win32 systems : Vista/7/8/10/11) 
+REM 	-w-								-> set all warning of compiler
+REM 	-odll_core.obj					-> -oxxxxxxxxx, output filename, here an object file
+REM 	-Dxxxxxx						-> define variable xxxxxx used by preprocessor of Digital Mars Compiler
+REM 	-IC:\dm\include\win32			-> -Ixxxxxxxxx, set the "main" include directory (another include directory can be added with another option -I....)
+REM 		Option not use here, but useful  : -Pz 						-> default to stdcall linkage
+echo.  **************************       Generation de la DLL en deux passes    *************************
+dmc src\dll_core.c -v0 -c -Ab -Bf -mn -WD -w- -odll_core.obj -DBUILD_DLL -D_WIN32 -DNDEBUG -IC:\dm\include\win32 -IC:\dm\stlport\stlport -IC:\dm\include
+REM Options used with Digital Mars Compiler linker 32 bits :
+REM Format general of Digital Mars link command : link [options] objfile[,outfile[,mapfile[,libfiles[,deffile[,resfile]]]]]     (comma separated list of flles used by linker)
+REM 	/SUBSYSTEM:WINDOWS						-> set the subsystem to Windows application 
+REM 	/NOLOGO  								-> don't see copyrigth and other informations about DMC
+REM 	/EXETYPE:NT 							-> set the type of executable to Windows NT (NT system or superior, like Windows 7, 8, 10 or 11)
+REM 	/IMPLIB:dll_core.lib					-> /IMPLIB:xxxxxxxx generate library file designed after
+REM 		Option not use here, but useful to force default behaviour -> /ENTRY:DllMain or another function : define entry name (or entry'point) of DLL, to be by default "DllMain"
+REM
+REM 	WARNING, don't use option -L/IMPDEF:dll_core_2.def that ask the linker to generate a def file, here dll_core_2.def, because format of import 
+REM 			library generated is incorrect : message during linkage of test programs  -> "dll_core.lib : Error 30: Unexpected End of File"
+echo.  *****************             Edition des liens (linkage) de la DLL             ***************
+link /NOLOGO /SUBSYSTEM:WINDOWS /EXETYPE:NT /IMPDEF:dll_core_2.def /IMPLIB:dll_core.lib dll_core.obj, dll_core.dll, , kernel32 user32.lib, src\dll_core.def 
+REM     COMMAND AFTER NOT MANDATORY : Linker generate good library with command line /IMPLIB=xxxxxxxx.lib
+REM 		implib /system dll_core.lib dll_core.dll
+REM 	See the result of generate def file by linker
+REM  echo.  ***************** 	           Affichage du def file genere par le linker			    *****************
+REM  type dll_core_2.def
+REM    Use of tool libunres to see publics names (here symbol of function exported by import library), just to add another control 
+REM    to verify if use of def file in input of linkage is correct (alias of symbols added to suppress prefix "_" generated by use 
+REM    of "cdecl" calling convention, to simplify extern call).
+REM 		-p 				: option to see publics names
+echo.  ***************** 	         Listage des symboles exportes de la librairie 32 bits	          *****************
+libunres -p dll_core.lib
+ 
+Internal commands used by CB with this compiler are described after :
+
+	1) command : compile single file to object file 
+		$compiler -mn -c $options $includes -o$object $file			(option "-mn" mandatory to Win32 systems (after WINNT))
+	2) command : generate dependencies for file
+		...     empty field     ...     no equivalent command available with Digital Mars Compiler that with GCC ...
+	3) command : compile Win32 resource file 
+		$rescomp -32 $res_includes $res_options -o$resource_output $file
+	4) command : link object files to executable 				(or GUI executable on Win32 systems)
+		$linker /NOLOGO /subsystem:windows $link_objects, $exe_output, , $libs $link_options, , $link_resobjects
+	5) command : link object files to console executable
+		$linker /NOLOGO $link_objects, $exe_output, , $libs $link_options
+	6) command : link object files to dynamic library
+		$linker /NOLOGO /subsystem:windows $link_options $link_objects, $exe_output, , $libs, , $link_resobjects
+	7) command : link object files to static library
+		$lib_linker -c $link_options $static_output $link_objects
+	8) command : link object files to native executable 
+		$linker /NOLOGO $link_objects, $exe_output, , $libs $link_options
+
+With this last command, don't forgive to add option /SUBSYSTEM:NATIVE into zone "Other links options" into CB.
+
+And to terminate, this compiler provided interesting tools like "coff2omf","coffimplib","dumpobj","implib","libunres",
+"make" (CMAKE unmanage this compiler),"makedep" and "unmangle" (but nothing like "impdef" ...).
+
+----------------------------------------------------------------------------------------------------------------
+Suggestions to Team CB with Digital Mars compiler : 
+
+Like with BC55 and GCC (and co), I propose to study, if it's pertinent to add "command macro" like $def_input describe after 
+				Dynamic library DEF input file 			$def_input
+	and use it with new syntax describe after during linkage of DLL with Digital Mars Compiler :
+	6) "new" internal command : link object files to dynamic library
+		$linker /NOLOGO /subsystem:windows $link_options $link_objects, $exe_output, , $libs, $def_input, $link_resobjects
+			Accepted or not ?
+----------------------------------------------------------------------------------------------------------------
+
+E) With LCC compiler (32 or 64 bit)
+
+CB can detect presence of LCC compiler (at least version 32 bit) at startup.
+
+But to distinguish versions 32 and 64 bit of these compilers, you must configure it manually by force values of fields, 
+after copy and after rename "LCC commpiler" proposed by CB in "LCC compiler 32" by example, like this :
+
+Toolchain executables (if you have choosen directory C:\lcc32 to decompress 32 bit version of LCC, adapt to your environment) :  
+	C:\lcc32 (search on subdirectory \bin automatically)
+	Compiler C : 				lcc.exe  
+	Compiler C++ : 				lcc.exe   				(not C++ compiler)
+	Linker for dynamic lib : 	lcclnk.exe  
+	Linker for static lib : 	lcclib.exe 
+	Debugger :					
+	Resource compiler :			lrc.exe 
+	Make program : 				make.exe
+
+Search directories :
+	a) compiler : 				C:\lcc32\include 
+	b) linker : 				C:\lcc32\lib
+	a) resource compiler : 		C:\lcc32\include
+
+For version 64 bit of LCC, you must also proceed by copy previous compiler "LCC compiler 32" and rename it to "LCC compiler 64"
+(by example) then change the values of fields into subtab of this new compiler like this :
+  
+Toolchain executables (if you have choosen directory C:\lcc64 to decompress 64 bit version of LCC, adapt to your environment) :   
+	C:\lcc64 (search on subdirectory \bin automatically)
+	Compiler C : 				lcc64.exe  
+	Compiler C++ : 				lcc64.exe  				(not C++ compiler)
+	Linker for dynamic lib : 	lcclnk64.exe  
+	Linker for static lib : 	lcclib64.exe
+	Debugger :					
+	Resource compiler :			lrc.exe (seem same version that with 32 bit LCC)
+	Make program : 				make64.exe
+
+Search directories :
+	a) compiler : 				C:\lcc64\include64 
+	b) linker : 				C:\lcc64\lib64 
+	a) resource compiler : 		C:\lcc64\include64
+
+And format's syntax of principals tools are (extensions of files are very important, space is separator, order is not important) :
+
+	Compiler :				lcc[64]  [options...] file...
+	Linker :				lcclnk[64] [options...] obj [res [def [libs]]]
+	Resource compiler :		lrc [options...] .RC input file
+	Linker for static lib : lcclib[64] [options...] <libfile.lib> <object(s) files>
+								
+An example to construct DLL with LCC Compiler 64 bit is presented after (with many restrictions, principal : def file in input mandatory
+in version 64 bit of LCC) :
+
+echo. ******************          Compilation de la DLL en mode 64 bits        *******************
+set PATH=C:\lcc64\bin;%PATH%
+lcc -v
+REM     Options used by lcc compiler version 64 bits
+REM 		-A       			All warnings will be active
+REM 		-O       			Optimize the output. This activates the peephole optimizer.
+REM 		-Dxxxxx	 			Define variable xxxxxx used by precompiler
+REM 		-o xxxxx 			Define output file generated by lcc compiler, here obj file
+REM 		-Ixxxxx  			Define include path used by lcc compiler 
+lcc64 -A -O -DNDEBUG -DBUILD_DLL -o dll_core64.obj -IC:\lcc64\include64 src\dll_core64.c 
+echo. *****************    Edition des liens .ie linkage de la DLL (64 bits)     ***************
+REM     Options used by linker of lcc compiler
+REM 		-dll     			Define output to be an Windows DLL
+REM 		-entry xxxx     	Define the entry point of DLL, here LibMain (not DllMain as usual !)
+REM 		-subsystem windows 	Define subsystem to windows (to generate GUI exe file or dll file, either use -subsystem console)
+REM 		-o xxxxx 			Define output file generated by lcc compiler, here dll file
+REM 		-Lxxxxx  			Define library path used by linker of lcc compiler 
+REM 	Note the use of def file, added just after obj file, and not the same of 32 bits LCC generation !!!! If it not present, programs of test DLL don't run ... 
+lcclnk64.exe dll_core64.obj src\dll_core64.def -dll -entry LibMain -nounderscores -subsystem windows -o dll_core64.dll -LC:\lcc64\lib64
+REM     Bug with load call of entry point LibMain with LCC 64 bit detected and explanation about this after :
+REM 	  	"LoadLibrary from 64-bit lcc-compiled exe didn't call libMain from 64 bit lcc-compiled dll. Dll is loaded and in memory, but no call. With 32 bit all ok.
+REM 		It seems there is some problem in loader code. When I changed Entry Point to func export address with hex editor, LoadLibrary started to work OK." 
+REM 	Note that import library are created automatically with no option to activate it or not, but it's not usable after with test program !!!
+REM 	Then, next command is mandatory if you want use and call functions defined in your DLL by test programs (by example)
+lcclib64 dll_core64.lib dll_core64.obj
+echo. ***************** 			Listage des symboles exportes de la DLL (64 bits)					*****************
+pedump /EXP dll_core64.dll
+
+Internal commands used by CB with this compiler are described after :
+
+	1) command : compile single file to object file 
+		$compiler -c $includes $options $file -Fo$object
+	2) command : generate dependencies for file
+		...     empty field     ...     no equivalent command available with LCC compilers that with GCC ...
+	3) command : compile Win32 resource file          (Warning, this tool is incapable to create subdirectories if they not exist !)
+		$rescomp $res_includes $file -fo$resource_output
+	4) command : link object files to executable 				(or GUI executable on Win32 systems)
+		$linker $libdirs $link_options $link_objects $link_resobjects $libs -o $exe_output
+	5) command : link object files to console executable
+		$linker -subsystem console $libdirs $link_options $link_objects $link_resobjects $libs -o $exe_output
+	6) command : link object files to dynamic library
+		$linker -dll $libdirs $link_options $link_objects $link_resobjects $libs -o $exe_output
+	7) command : link object files to static library
+		$lib_linker $link_objects $link_resobjects -OUT:$static_output
+	8) command : link object files to native executable 
+		$linker -subsystem console $libdirs $link_options $link_objects $link_resobjects $libs -o $exe_output
+
+And to terminate, this compiler provided interesting tools like "grep", "make" (CMAKE unmanage this compiler), "pedump" 
+and "weditres" (but nothing like "implib" or "impdef" ...).
+	
+----------------------------------------------------------------------------------------------------------------
+Suggestions to Team CB with LCC compiler (32 or 64 bit) : 
+
+	1) I propose to add option "-subsystem windows" with fourth internal command (compile object files to executable).
+		like with MSVC compiler. Note that for GUI application Win32, this option is mandatory.
+			Accepted or not ?
+			
+	2) I propose to add option "-subsystem windows" with sixth internal command (compile object files to dynamic library).
+		Option "-dll" is suffisant to position this another option by default (not tested) ?
+			Accepted or not ?
+			
+	3) Like with BC55 and GCC and DMC, I propose to study, if it's pertinent to add "command macro" like $def_input describe 
+		after :
+				Dynamic library DEF input file 			$def_input
+		and use it with new syntax describe after during linkage of DLL with LCC compiler :
+			6) "new" internal command : link object files to dynamic library
+				$linker -subsystem windows -dll $libdirs $link_options $link_objects $link_resobjects $def_input $libs -o $exe_output
+			Accepted or not ?
+
+Maybe, I can propose last evolution to change option "-subsystem console" to "-subsystem windows" with eigtheen internal command 
+(compile object files to native library), because on Win32 system it's usual to build DLL, or executable (Kernel driver) to target
+"native" build (to be aligned with others compilers ...). If you want build "kernel driver" option "-subsystem console" is adequate,
+if you want construct "system dll", option "-subsystem windows" seem most "in phase", and option "-dll" is required...
+But, I really doubt that LCC can realize this type of build !!!!  Maybe transform this syntax to "empty field" ?
+
+----------------------------------------------------------------------------------------------------------------
+
+F) With MSVC compiler (32 and 64 bit) included in Visual Studio 2022 Community (free version).
+
+It seem that CB is today unable to detect automatically this installation and not propose it into list of recognized compilers.
+It's damage !
+
+Just to precise, it's not easy to configure this compiler into CB, because many directories are needed to be identified, and 
+these directories depend of multiple idents of version of components used, and, to complixify, these idents can change after 
+update by tool "Visual Studio Installer" during time. Not simple, thank's M$ !!!
+
+Like see before with CLANG leaned with MSVC (included in VS2022), I decide to manage environment variables to adapt my 
+configuration of MSVC into CB, and to be "independant" of change of these idents "hard coded" :
+		KIT_VERSION valued by (at date) 	10
+		KIT_NUM valued by (at date) 		10.0.26100.0
+		VS_VERSION valued by (at date)		2022
+		VS_NUM valued by (at date)			14.43.34808
+
+Another precision, It's preconised to choose an model of compiler proposed by CB (here : "Visual Studio 2017"), copy it and
+rename first with new name ""Visual Studio 2022 X32" (by example) to distinguish 32 and 64 bit version of MSVC.
+
+With this last created compiler, as usual, you must fix new values in fields :
+
+Toolchain executables : 
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\bin\Hostx86\x86
+		Warning, you must add two directories in subtab "Additional paths" (to be sure to give access to subdir bin\Hostx86\x86)
+			a) C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\bin\Hostx86\x86
+			b) C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\bin\%KIT_NUM%\x86 (to give access at resource compiler
+					executable : "rc.exe".)
+	Compiler C : 				cl.exe  
+	Compiler C++ : 				cl.exe  
+	Linker for dynamic lib : 	link.exe  
+	Linker for static lib : 	lib.exe 
+	Debugger :					?							(WinDBG ?)
+	Resource compiler :			rc.exe						(issued of SDK Windows, not MSVC)
+	Make program : 				nmake.exe
+
+Search directories :
+	a) compiler : 			C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\shared    and 
+							C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\ucrt      and
+							C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\um		  and
+							C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\include
+	b) linker : 			C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\lib\%KIT_NUM%\um\x86		  and
+							C:\Program Files (x86)\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\lib\x86
+							C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\lib\%KIT_NUM%\ucrt\x86	  and
+							C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\lib\x86\store
+	a) resource compiler : 	C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\shared    and 
+							C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\ucrt      and
+							C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\um		  and
+							C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\include
+
+At new, copy this compiler and rename to with new name ""Visual Studio 2022 X64" (by example) to configure 64 bit version of MSVC
+into CB, with these new values :
+
+Toolchain executables : 
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\bin\Hostx64\x64
+			Warning, you must add two directories in subtab "Additional paths" (to be sure to give access to subdir bin\Hostx64\x64)
+			a) C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\bin\Hostx64\x64
+			b) C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\bin\%KIT_NUM%\x64 (to give access at resource compiler executable :
+					 "rc.exe".)
+	Compiler C : 				cl.exe  
+	Compiler C++ : 				cl.exe  
+	Linker for dynamic lib : 	link.exe  
+	Linker for static lib : 	lib.exe 
+	Debugger :					?							(WinDBG ?)
+	Resource compiler :			rc.exe
+	Make program : 				nmake.exe
+
+Search directories :
+	a) compiler : 				C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\shared    and 
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\ucrt      and
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\um		  and
+								C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\include
+	b) linker : 				C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\lib\%KIT_NUM%\um\x64		  and
+								C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\lib\x64
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\lib\%KIT_NUM%\ucrt\x64	  and
+								C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\lib\x64\store
+	a) resource compiler : 		C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\shared    and 
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\ucrt      and
+								C:\Program Files (X86)\Windows Kits\%KIT_VERSION%\include\%KIT_NUM%\um		  and
+								C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\include	
+
+Just to be precise, you can also position with four environment variables these "plenty" list of directories outside 
+of CB, like explain after with use of four environment variables.
+
+First environment variable is :
+	- PATH into it you must indicate and list all directories used to access of binaries of tools used.
+And the three others are :
+	- INCLUDE, to list all directories used to access at "include" files used during your generation (compilation)
+	- LIB, to list all directories used to access at "libraries" files used during your generation (linkage)
+			(static or import libraries)
+	- LIBPATH to list supplemental directories used to access at another "libraries" files, not primary used (linkage).
+			
+You can see below an command file to generate an DLL with MSVC 64 bit (with env variables positionned correctly to PATH, 
+INCLUDE and LIB) :
+			
+echo.  ******************             Compilation de la DLL en mode 64 bits              *******************
+REM Options used with  Visual C/C++ compiler 64 bit (same with 32 bit)
+REM 	/Wall								-> set all warning during compilation
+REM		/c 									-> compile and assemble only, not call of linker
+REM 	/Dxxxxxx							-> define variable xxxxxx used by preprocessor of compiler Visual C/C++
+REM 	/Fodll_core.obj 					-> output of object file indicated just after this option 
+echo.  ***************       Compilation de la DLL avec Visual C/C++ 64 bits + Kits Windows.             *****************
+cl /nologo /Wall /c /DBUILD_DLL /DNDEBUG src\dll_core.c /Fodll_core64.obj 
+REM Options used with linker cl 64 bit (same with 32 bit)
+REM		/LD									-> generate a shared library => on Window, generate a DLL (Dynamic Linked Library)
+REM		/MT                     			-> Use static run-time  
+echo.  ***************          Edition de liens de la DLL avec Visual C/C++ 64 bits + Kits Windows.     *******************
+cl /nologo /LD /MT /Fe:dll_core64.dll dll_core64.obj 
+echo.  ***************              Listage des fonctions exportees de la DLL                            *******************
+REM  	dump result with command "dumpbin" to see exported symbols of dll
+dumpbin /exports  dll_core64.dll
+
+Extract of M$ documentation :
+*******************************************************************************************************************************
+A DLL usually contains exports that can be used by another program. There are three methods for specifying exports, listed in 
+recommended order of use:
+
+    1) __declspec(dllexport) in the source code
+
+    2) An EXPORTS statement in a .def file (with use of /DEF:deffile during linkage) 
+
+    3) An /EXPORT specification in a LINK command
+*******************************************************************************************************************************
+
+Internal commands used by CB with this MSVC compiler are described after :
+
+	1) command : compile single file to object file 
+		$compiler /nologo $options $includes /c $file /Fo$object
+	2) command : generate dependencies for file
+		...     empty field     ...     no equivalent command available with MSVC compilers that with GCC ...
+	3) command : compile Win32 resource file          
+		$rescomp $res_includes $res_options -fo$resource_output $file
+	4) command : link object files to executable 				(or GUI executable on Win32 systems)
+		$linker /nologo /subsystem:windows $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+	5) command : link object files to console executable
+		$linker /nologo /subsystem:windows $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+	6) command : link object files to dynamic library
+		$linker /dll /nologo $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+	7) command : link object files to static library
+		$lib_linker /lib /nologo $libdirs /out:$static_output $libs $link_objects $link_resobjects $link_options
+	8) command : link object files to native executable 
+		$linker /nologo /subsystem:native $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+
+With this compiler, use of module definition file during creation of DLL can be activate with option /DEF:xxxxxxx (name of def file)
+(or you can also list exported symbols by another option, with use of /EXPORT=xxxxxxx). It seem enought to be activated during use 
+of  internal command n° 6 of CB describe below, without change, in this case.
+
+----------------------------------------------------------------------------------------------------------------
+Suggestion to Team CB with MSVC compiler included in VS2022 installtion (32 or 64 bit) : 
+
+	1) I propose to study, if it's pertinent to detect automatically presence of MSVC included in VS2022 on Win32 systems.
+		Search presence of directory "C:\Program Files\Microsoft Visual Studio\2022" (seem suffisant ?).
+			Accepted or not ?
+----------------------------------------------------------------------------------------------------------------
+
+G) With OneAPI Intel C/C++ compiler (32 and 64 bit).
+
+With this compiler also, it's not easy to configure this compiler into CB, because many directories are needed to 
+be identified.
+
+Another hand, this compiler has very changed before previous versions, it is construct today under "new base" LLVM.
+Maybe good choice for future ans perennity of this compiler, but it exist big difference with many new options used 
+to generate target on Win32. One example is new distinction beetween compilers used in function of language (neither 
+option to distinguish architecture choosen with same executable, before "icc.exe") :
+	- compile with C code needed to use "driver" "icx.exe"
+	- compile with C++ code needed to use "driver" "icpx.exe"
+
+One precision, this compiler (like "CLANG") must to be in "front end" of another full development environment like MSVC
+or MinGW32/64. For next configurations, the choice is to "back end" with Visual Studio 2002 Community + SDK Windows 11.
+
+WARNING : After update by "Visual Studio Installer", all number included into name of directories of MSVC/SDK can change !!! 
+	To integrate these evolutions, it's seem rational to define environment variables on system like this :
+					VS_VERSION 			define to 2022				(at date)
+					VS_NUM  			define to 14.43.34808  		(at date)			and 
+					KIT_VERSION 		define to 10				(at date)
+					KIT_NUM  			define to 10.0.26100.0		(at date)
+	Then, you can use these variables into configuration of CB with use of %var% to be independant of evolutions of VS2022.
+
+First, you must access into IDE CB at menu "Settings" and submenu "Compilers" to select "Visual Studio 2022 X64".
+I don't use like model compiler "Intel C/C++ compiler" proposed by CB in list, because new syntax is very neighbour of MSVC. 
+To distinguish version 32 bits or 64 bits into CB, you must rename this ident of compiler in "Intel C/C++ compiler (64 bit)"
+by example.
+An after, you must position "Compiler's installation directory" to "C:\Program Files (x86)\Intel\oneAPI\compiler\latest". 
+
+This directory is the same beetween 32 or 64 bits, but the rest of configuration is different in 32 or 64 bits.
+You must select list of tools like this (in tab "Program Files") :
+	Compiler C : 				icx.exe
+	Compiler C++ :				icxp.exe
+	Linker for dynamic libs :	xilink.exe
+	Linker for statics libs :	xilib.exe 
+	Debugger :					GDB/CDB 		(choice by default, because Intel provide special version GDB)
+	Resource compiler :			rc.exe 			(yes, this of SDK Windows 11)
+	Make program : 				nmake.exe 		(yes, this of MSVC included in Visual Studio 2002 Community)
+
+But with this configuration, you must add multiple directories (in another tab "Additional Paths") to access of all tools :
+	C:\Program Files (x86)\Intel\oneAPI\tbb\latest\env\..\bin  
+	C:\Program Files (x86)\Intel\oneAPI\ocloc\latest\bin
+	C:\Program Files (x86)\Intel\oneAPI\dev-utilities\latest\bin
+	C:\Program Files (x86)\Intel\oneAPI\debugger\latest\opt\debugger\bin
+	C:\Program Files (x86)\Intel\oneAPI\compiler\latest\lib\ocloc
+	[C:\Program Files (x86)\Intel\oneAPI\compiler\latest\bin] 		Optionnal,because subdirectory \bin is search autoamtically)
+	C:\Program Files (x86)\Intel\oneAPI\compiler\latest\opt\oclfpga\host\windows64\bin
+	C:\Program Files (x86)\Intel\oneAPI\compiler\latest\opt\oclfpga\bin
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\bin\Hostx64\x64
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\bin\%KIT_NUM%\x64
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\bin\x64
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\MSBuild\Current\Bin\amd64 
+
+And, it's not all, you must configure in tab "Search Directories" and select "Compiler", or "Linker" or "Resource Compiler" 
+subtabs.
+
+For compiler, search directories of "include files" are (and it's the same for "Resource Compiler") :
+	C:\Program Files (x86)\Intel\oneAPI\compiler\latest\lib\clang\18\include
+	C:\Program Files (x86)\Intel\oneAPI\tbb\latest\include
+	C:\Program Files (x86)\Intel\oneAPI\compiler\latest\include
+	C:\Program Files (x86)\Intel\oneAPI\dev-utilities\latest\include
+	C:\Program Files (x86)\Intel\oneAPI\ocloc\latest\include
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\include
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Auxiliary\VS\include
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\Include\%KIT_NUM%\ucrt
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\Include\%KIT_NUM%\um
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\Include\%KIT_NUM%\shared
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\Include\%KIT_NUM%\winrt
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\Include\%KIT_NUM%\cppwinrt
+ 
+For linker, search directories of "lib files" are :
+	C:\Program Files (x86)\Intel\oneAPI\compiler\latest\lib
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\lib\x64
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\Lib\%KIT_NUM%\ucrt\x64
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\lib\x64\store
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\Lib\%KIT_NUM%\um\x64
+	
+Remark : If you wan't use environment variables, you must translate these by "real value" of directory into CB.
+
+It's some tedious, but with these "full" configurations, you can build an program on Windows 11 64 bits with success
+into CB.
+
+You can also indicate this "plenty" list of directories outside of CB by use of environment variables PATH, 
+INCLUDE, LIB and LIBPATH (like with MSVC).
+	
+You can activate an initialisation script provided by Intel to position "good values" for these environment variables, 
+just to verify the changes, after run "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" with arguments like :
+
+The setvars batch file takes multiple optional arguments; the following two arguments are recognized for compiler and 
+library initialization:
+
+<install-dir>\setvars.bat [<arg1>] [<arg2>] [options]
+
+Where <arg1> is optional and can be:
+    intel64 : Generate code and use libraries for Intel® 64 architecture (host and target).
+    ia32 : Generate code and use libraries for Intel® 32 architecture (host and target).
+
+The <arg2> is optional. If specified, it is one of the following:
+    vs2022: Microsoft Visual Studio 2022
+    vs2019: Microsoft Visual Studio 2019
+	
+NOTE :
+If <arg1> is not specified, the script uses the intel64 argument by default. If <arg2> is not specified, the script uses 
+the highest installed version of Microsoft Visual Studio detected during the installation procedure.
+
+Warning, if you want test run of this script with 32 and after 64 bit versions, you must rerun it with option "--force" to
+reinitialize correctly four previous environment variables, otherwize each var are completed : initial value + new value. 
+
+And, just to complete, you can also position these indications into two parameter files stored into 
+	"C:\Program Files (x86)\Intel\oneAPI\compiler\latest\bin" :
+			"icx.cfg"    and    "icpx.cfg"   (like with BC55, but I'm not find explanations about complete these files ...) 
+Note also, presence of another configuration file "cl.cfg" present in previous directory, but also in ".....\bin32" directory.
+At what do it and how parameter it ? 
+		
+Now, you must copy "Intel C/C++ compiler (64 bits)" in list of available compilers into CB (menu "Settings" submenu 
+"Compilers"), and rename it by "Intel C/C++ compiler (32 bits)" by example
+
+New configuration for this compiler in version 32 bit are describe next :
+
+In subtab "Additional Paths" :
+	C:\Program Files (x86)\Intel\oneAPI\tbb\latest\env\..\bin32  
+	C:\Program Files (x86)\Intel\oneAPI\ocloc\latest\bin
+	C:\Program Files (x86)\Intel\oneAPI\dev-utilities\latest\bin
+	C:\Program Files (x86)\Intel\oneAPI\debugger\latest\opt\debugger\bin
+	C:\Program Files (x86)\Intel\oneAPI\compiler\latest\lib\ocloc
+	C:\Program Files (x86)\Intel\oneAPI\compiler\latest\bin32
+	C:\Program Files (x86)\Intel\oneAPI\compiler\latest\opt\oclfpga\host\windows64\bin
+	C:\Program Files (x86)\Intel\oneAPI\compiler\latest\opt\oclfpga\bin
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\bin\Hostx86\x86
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\bin\%KIT_NUM%\x86
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\bin\x86
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\MSBuild\Current\Bin\amd64
+
+In tab "Search Paths", only changes are mandatory in subtab "Linker" ("include" files directories are same) :
+	C:\Program Files (x86)\Intel\oneAPI\compiler\latest\lib32
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\lib\x86
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\Lib\%KIT_NUM%\ucrt\x86
+	C:\Program Files\Microsoft Visual Studio\%VS_VERSION%\Community\VC\Tools\MSVC\%VS_NUM%\lib\x86\store
+	C:\Program Files (x86)\Windows Kits\%KIT_VERSION%\Lib\%KIT_NUM%\um\x86
+
+And, to terminate, you must "force" an option in tab "Compiler Settings" and in subtab "Other compiler options" to "-m32",
+it's option to force 32 bit generation with this compiler (Intel inform that this option will disappear in future version).
+It is the case with last version of these compiler available on site Intel : 2025.0.4 (at date), impossible to position
+option "-m32" (and "-m64" too, because become default) during generation.
+
+You can see below an command file to generate an DLL with OneAPI Intel C/C++ compiler 64 bit in console Windows (CMD)
+(with env variables positionned correctly to PATH, INCLUDE and LIB, with same values that it configured into CB) :
+			
+echo.  ******************             Compilation de la DLL en mode 64 bits               *******************
+REM Options used with  OenAPI Intel C/C++ compiler 64 bit
+REM 	/nologo								-> suppress display of copyrigths and version used
+REM		-m64                     			-> To generate target 64 bit (-m32 another way).
+REM 	/Wall								-> set all warning during compilation
+REM		/c 									-> compile and assemble only, not call of linker
+REM 	/Dxxxxxx							-> define variable xxxxxx used by preprocessor of compiler OenAPI Intel C/C++
+REM 	/Fodll_core.obj 					-> output of object file indicated just after this option 
+echo.  ***************       Compilation de la DLL avec OenAPI Intel C/C++ 64 bits + MSVC + Kits Windows.             *****************
+icx /nologo -m64 /Wall /c /DBUILD_DLL /DNDEBUG src\dll_core.c /Fodll_core64.obj 
+REM Options used with linker cl /nologoANG/LLVM 64 bit (very similar with syntax of MSVC compiler) :
+REM 	/nologo								-> suppress display of copyrigths and version used
+REM		-m64                     			-> To generate target 64 bit (-m32 another way).
+REM		/LD									-> generate a shared library => on Window, generate a DLL (Dynamic Linked Library)
+REM		/MT                     			-> Use static run-time 
+echo.  ***************          Edition de liens de la DLL avec OenAPI Intel C/C++ 64 bits + MSVC + Kits Windows.     *******************
+icx /nologo -m64 /LD /MT /Fedll_core64.dll dll_core64.obj 
+REM 	 It can be also generated with next command line (import library is create automatically and .EXP (export ?) file) :
+REM		xilink /nologo /DLL /OUT:dll_core64.dll dll_core64.obj 
+echo.  ***************              Listage des fonctions exportees de la DLL                                   *******************
+REM  	dump result with command "dumpbin" to see exported symbols of dll
+dumpbin /exports  dll_core64.dll
+
+Internal commands used by CB with this OneAPI Intel compiler are described after (same as MSVC, strange not ?  -) ):
+
+	1) command : compile single file to object file 
+		$compiler /nologo $options $includes /c $file /Fo$object
+	2) command : generate dependencies for file
+		...     empty field     ...     no equivalent command available with MSVC compilers that with GCC ...
+	3) command : compile Win32 resource file         
+		$rescomp $res_includes $res_options -fo$resource_output $file
+	4) command : link object files to executable 				(or GUI executable on Win32 systems)
+		$linker /nologo /subsystem:windows $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+	5) command : link object files to console executable
+		$linker /nologo /subsystem:windows $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+	6) command : link object files to dynamic library
+		$linker /dll /nologo $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+	7) command : link object files to static library
+		$lib_linker /lib /nologo $libdirs /out:$static_output $libs $link_objects $link_resobjects $link_options
+	8) command : link object files to native executable 
+		$linker /nologo /subsystem:native $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+
+With this compiler, use of module definition file during creation of DLL can be activate with option /DEF:xxxxxxx (name of def file)
+(or you can also list exported symbols by another option, with use of /EXPORT=xxxxxxx). It seem enought to be activated during use 
+of  internal command n° 6 of CB describe below, without change, in this case.
+
+----------------------------------------------------------------------------------------------------------------
+Suggestion to Team CB with OneAPI Intel C/C++ compiler (32 or 64 bit) : 
+
+	1) I propose to study, if it's pertinent to detect automatically presence of OneAPI Intel C/C++ compiler on Win32 systems.
+		Search presence of directory "C:\Program Files (x86)\Intel\oneAPI" (seem suffisant ?).
+			Accepted or not ?
+----------------------------------------------------------------------------------------------------------------
+
+H) With Open WATCOM C/C++ compiler (32 and 64 bit, but 64 bit version of this compiler generate only 32 bit target).
+
+By default, installation directory of this compiler on Win32 systems is "C:\WATCOM" (WARNING, it can be installed too
+on Unix/Linux systems).
+
+Normally detect automatically by CB during startup, but, as usual, you can configure it into CB, and to distinguish 
+versions 32 or 64 bit, you must copy an rename compiler proposed ("OpenWatcom (W32) Compiler") in "OpenWatcom (W64) Compiler" 
+(by example to 64 bit version).
+
+Then, you can select version X86 or version X64 with two different declinaisons of theses compilers C/C++ into CB, putting
+good supplementals options of compilation and linkage into "global" configuration of these compilers into CB (This can be acces 
+by select general menu "Settings" and after submenu "Compilers"):
+    /MACHINE=X86 or /MACHINE=X64 respectively to "OpenWatcom (W32) Compiler" and "OpenWatcom (W64) Compiler"
+
+And after, as usual, you must indicate new values after in each fields :
+		
+Toolchain executables : 
+	C:\WATCOM
+	But with this configuration, you must also add directories (in another tab "Additional Paths") to access of tools :
+			C:\WATCOM\binnt or C:\WATCOM\binnt64 respectively to X86 version of OW compiler and to X64 version of OW
+	Compiler C : 				wcl386.exe
+	Compiler C++ : 				wcl386.exe
+	Linker for dynamic lib : 	wlink.exe
+	Linker for static lib : 	wlib.exe
+	Debugger :					 
+	Resource compiler :			wrc.exe
+	Make program : 				wmake.exe
+
+Search directories :
+	a) compiler : 				C:\WATCOM\h\nt    	puis  C:\WATCOM\h
+	b) linker : 				C:\WATCOM\lib386\nt puis  C:\WATCOM\lib386
+	a) resource compiler : 		C:\WATCOM\h\nt    	puis  C:\WATCOM\h
+
+And format's syntax of principals tools are very simple and standard :
+
+	Compiler :				wcc386 [options] file [options]
+	Linker :				wlink {directives}         	(here directives depend of "host" OS on OW is configured and are syntaxly hard)
+	Resource compiler :		wrc {options} input-filename {options} [output-filename] {options}
+	Linker for static lib : wlib { <option> } <library_name> [ <commands> ]
+
+Just to illustrate, some commands to generate and DLL with this compiler in CMD :
+
+echo. ******************          Compilation de la DLL en mode 64 bits        *******************
+REM      Mandatory, add to PATH the binary directory of compiler OW 64 bits. You can adapt this directory at your personal software environment.
+set PATH=C:\WATCOM\binnt64;%PATH%
+REM     Options used by Open Watcom compiler 64 bits (wcc386.exe is a strict compiler that product only ".obj" file, wcl386 is a full genarator (compiler + linker) that product ".exe" file)
+REM 		-q       					Set to quiet mode
+REM 		-bd       					Set option to build DLL 
+REM 		-d0 						No debugging information
+REM 		-ecc						Set calling conv. to __cdecl (Mandatory, if you want test DLL with Python !!! If not, default is __watcall, and Python don't call "int" operations, but "dbl" yes !)
+REM 		-v 							Option to generate def file (like "option impfile=dll_core.def" ?!?!? but without suppression of generation of lib file)
+REM 		-dxxxxx	 					Define variable xxxxxx used by precompiler
+REM 		-ixxxxxx					Define search path to include file
+REM 		-fo=xxxxx 					Define output file generated by Open Watcom compiler, here obj file
+wcc386 -q -bd -d0 -ecc -v -dNDEBUG -dBUILD_DLL src\dll_core.c -i=C:\WATCOM\h\nt -i=C:\WATCOM\h -fo=dll_core64.obj
+echo. ************     			Dump des symboles exportes avec l option -v  (format hard to exploit)  		 *************
+copy /y dll_core.def dll_core64_two.def
+type dll_core64_two.def
+echo. *****************           Edition des liens .ie. linkage de la DLL.        ***************
+REM     Options used by linker of  Open Watcom compiler
+REM 		system nt_dll     			Define output to be an Windows [NT] DLL  (another option can be "system nt_win" to Windows appplication ")
+REM 		initinstance terminstance   Mandatory to call the entry point of DLL, here LibMain. It's a continued parameters after "system nnnn". 
+REM 		run win 					Define subsystem to windows (either to generate GUI exe file or dll file, it can be "run con" to console application, and "run native", but also "run lin" to linux,etc...)
+REM 		EXPORT=filename.lbc			Instruct linker to add "alias" of functions/symbols défined into dll, here file lbc is src\dll_core64.lbc 
+REM 		name xxxxxx 				Define output file generated by Open Watcom linker, here dll file.
+REM 		file xxxxxx					Define input file of Open Watcom linker
+REM 		option						Mandatory to add optionnal instructions to linker
+REM 			implib=xxxxxx				Instruct linker to generate lib file in parallel of DLL 
+REM 			quiet						Set to quiet mode
+wlink system nt_dll initinstance terminstance run win EXPORT=src\dll_core64.lbc LIBP C:\WATCOM\lib386\nt;C:\WATCOM\lib386 option implib=dll_core64.lib option quiet name dll_core64.dll file dll_core64.obj
+REM 	Not mandatory here, wlink can generate lib file with option implib=dll_core64.lib, but without another option impfile=dll_core64.def (to generate def file) on same line, seem bug ???? 
+REM wlib -q -n dll_core64.lib +dll_core64.dll
+REM 	Options used by tool "wdump" of Open Watcom compiler (to verify presence of alias of symbols). 
+REM 		-i				Show list of exported symbols from a library/exe/obj/dll
+echo. ************     				 Dump des symboles exportes de la DLL dll_core64.dll      		  *************
+wdump -i dll_core64.dll
+
+Internal commands used by CB with this Open WATCOM compiler are described after :
+
+	1) command : compile single file to object file 
+		$compiler -q -c $options $includes -fo=$object $file
+	2) command : generate dependencies for file
+		...     empty field     ...     no equivalent command available with MSVC compilers that with GCC ...
+	3) command : compile Win32 resource file          
+		$rescomp -q -r -fo=$resource_output $res_includes $file
+	4) command : link object files to executable 				(or GUI executable on Win32 systems)
+		$linker option quiet $link_options $libdirs $link_objects name $exe_output $libs $link_resobjects
+	5) command : link object files to console executable
+		$linker option quiet $link_options $libdirs $link_objects name $exe_output $libs $link_resobjects
+	6) command : link object files to dynamic library
+		$linker option quiet $link_options $libdirs name $exe_output $libs $link_objects
+	7) command : link object files to static library
+		$lib_linker -q $static_output $link_objects
+	8) command : link object files to native executable 
+		$linker option quiet $link_options $libdirs $link_objects name $exe_output $libs $link_resobjects
+
+With this compiler, use of module definition file during creation of DLL can be activate with option "EXPORT=xxxxxxx" 
+(name of lbc file) and it is the same with creation of import library : "option IMPLIB=xxxxxxx" in zone "Other linker options"
+into CB.
+It seem enought to be activated during use of internal command n° 6 of CB describe below, without change, in this case.
+
+Just a remark, this is the user of CB that must think to position "ad hoc" options during linkage in zone indicated 
+before to success achieve all of the objectives (like use of option "EXPORT" or "IMPORT" in the case of def file used
+to construct DLL or to use it). I remark also that "command macro" $link_resobjects is traduct by full syntax compatible 
+with OW linker : "option resource=xxxxxxxxxx". Respect!
+
+----------------------------------------------------------------------------------------------------------------
+Suggestion to Team CB with Open WATCOM compiler (32 or 64 bit) : 
+
+	1) I propose to study, if it's pertinent to generate automatically (if option has selected by user during creation 
+	  of project DLL) the creation of import library with this compiler (don't use selection of def file because bug!)
+	  By example add into internal command n° 6 "link object files to dynamic library" an new field like this 
+			"option implib=$exe_dir\$exe_name.lib"
+			Accepted or not ?
+----------------------------------------------------------------------------------------------------------------
+	
+I) With Pelles C compiler (32 and 64 bit).
+
+Pelles C compiler is not detected automatically at startup of CB. Like LCC compiler, difficulty is the choice given
+to user to install this compiler on directory unfixed, but selected during installation ...
+
+By default, installation program propose "C\Program Files (x86)\PellesC" like installation directory. I change this 
+to "C:\PellesC" (to short access), but it's not a preconisation, you can choose to rest in standard way.
+
+I have configured two possibilities of generation in version X86 or X64 with two different declinaisons of this compiler under CB :
+"Pelles C X32" and "Pelles C X64".
+To achieve this, you must select general menu "Settings" and after submenu "Compiler" to choose (once again "model" is 
+"Visual Studio 2022 X32") and after copy it, you must rename at your choice "Pelles C X32" (by example).
+	
+It's recommended then to select an option in tab "Compiler Settings" and in subtab "Other compiler options" to write "-Tx86-coff",
+and in subtab "#define" to type "_X86_" in first step. And in the last step, in tab "Linker Settings", select windows "Other linker
+options" ans type "/MACHINE:X86", if you want generate and test your target in version 32 bit.
+
+Again, you must reselect compiler "Pelles C X32" into CB "General Settings", copy it, and rename it in ""Pelles C X64" (by example).
+To 64 bits, you must force in tab "Compiler Settings" and in subtab "Other compiler options" to write "-Tx64-coff", and suppress 
+"#define" to type "_X86_", and change "Linker Settings", select windows "Other linker options" and type "/MACHINE:X64".
+	
+Then for each of these two last compilers, you must change next fields by type "good" values described next :
+
+Toolchain executables : 
+	C:\PellesC (subdirectory \bin search automatically)
+	Compiler C : 				pocc.exe  
+	Compiler C++ : 				pocc.exe  				(Pelles C is "strictly" an C Compiler based on LCC, but very enhanced)
+	Linker for dynamic lib : 	polink.exe  
+	Linker for static lib : 	polib.exe 
+	Debugger :					 
+	Resource compiler :			porc.exe 
+	Make program : 				pomake.exe
+
+Search directories :
+	a) compiler : 				C:\PellesC\include\Win 											and C:\PellesC\include 
+	b) linker : 				C:\PellesC\lib\Win64 (or C:\PellesC\lib\Win if generation 32 bit)  and  C:\PellesC\lib 
+	a) resource compiler : 		C:\PellesC\include\Win 											and C:\PellesC\include
+	
+You can also position these diffrent list of directories by set value "ad hoc" into PATH, INCLUDE and LIB environment
+variables. Note that it's exactly the onjective of command files "povars32.bat" and "povars64.bat" provided with this 
+compiler, and stored in "C:\PellesC\bin".
+
+And format's syntax of principals tools are very simple and standard :
+
+	Compiler :				pocc [options] srcfile{.c|.asm}
+	Linker :				polink [ { option | file | @commandfile } ... ]
+	Resource compiler :		porc [options] input[.rc]
+	Linker for static lib : polib [ { option | file | @commandfile } ... ]
+
+You can see after how to generate 64 bit DLL with this compiler into console commeand windows (CMD) with PATH positionned :
+
+echo. ******************          Compilation de la DLL en mode 64 bits        *******************
+REM     Options used by Pelles C compiler 64 bit (prefixed by "-" or "/") 
+REM 		-c       					Compilation only, it's default !
+REM 		-Gd							Uses cdecl as the default calling convention. /Gz to use stdcall as the default calling convention or /Gn to use no decoration of exported stdcall symbols.
+REM 		-Ze 						Activates Microsoft's extensions to C.
+REM 		-Txxxxx						Selects the target processor and output format. Here "x64-coff", another option is "x86-coff" to 32 bit architecture
+REM 		/Dxxxxx	 					Define variable xxxxxx used by precompiler
+REM 		/Ixxxxxx					Define search path to include file, many repeat of this option are authorized.
+REM 		/Foxxxxx 					Define output file generated by Pelles C compiler, here obj file
+pocc -c -Gd -Ze -Tx64-coff /DNDEBUG /DBUILD_DLL /D_WIN32 src\dll_core.c /IC:\PellesC\include /IC:\PellesC\include\Win /Fodll_core64.obj
+echo. *****************           Edition des liens .ie. linkage de la DLL.        ***************
+REM     Options used by linker of Pelles C compiler (prefixed by "-" or "/")
+REM 		-machine:x64				Set architecture of 64 bits processor X64
+REM 		-subsystem:console   		Mandatory to generate DLL, with others C compilers, this option is -subsystem:windows (GUI mode). It's a choice !
+REM 		-dll 						Define target linker to DLL
+REM 		-libpath:xxxxxxxx			Define search path to lib file. Many repeat of this option to add search path of libraries, same current directory.
+REM 		/OUT:xxxxxx					Define name of output file, here dll file
+polink /machine:x64 /subsystem:windows /dll /libpath:"C:\PellesC\Lib" /libpath:"C:\PellesC\Lib\Win64" /OUT:dll_core64.dll dll_core64.obj
+REM 	Not mandatory here, polink generate automatically import lib file. Nice automation !
+REM polib /MACHINE:X64 /OUT:dll_core64.lib dll_core64.obj
+REM 	Options used by tool "podump" of Pelles C compiler
+REM 		/exports				Show list of exported symbols from a library/exe/obj/dll
+echo. ************     				 Dump des symboles exportes de la DLL dll_core64.dll      				  *************
+podump /exports dll_core64.dll
+
+Internal commands used by CB with Pelles C compiler are described after (same as MSVC, strange not ?  -) ):
+
+	1) command : compile single file to object file 
+		$compiler /nologo $options $includes /c $file /Fo$object
+	2) command : generate dependencies for file
+		...     empty field     ...     no equivalent command available with MSVC compilers that with GCC ...
+	3) command : compile Win32 resource file          
+		$rescomp $res_includes $res_options -fo$resource_output $file
+	4) command : link object files to executable 				(or GUI executable on Win32 systems)
+		$linker /nologo /subsystem:windows $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+	5) command : link object files to console executable
+		$linker /nologo /subsystem:windows $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+	6) command : link object files to dynamic library
+		$linker /dll /nologo $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+	7) command : link object files to static library
+		$lib_linker /lib /nologo $libdirs /out:$static_output $libs $link_objects $link_resobjects $link_options
+	8) command : link object files to native executable 
+		$linker /nologo /subsystem:native $libdirs /out:$exe_output $libs $link_objects $link_resobjects $link_options
+
+With this compiler, use of module definition file during creation of DLL can be activate with option /DEF:xxxxxxx (name of def file)
+(or you can also list exported symbols by another option, with use of /EXPORT=xxxxxxx like with MSVC). It seem enought to be activated 
+during use of  internal command n° 6 of CB describe below, without change, in this case.
+
+And to terminate, this compiler provided interesting tools like "pocert", "podump", "pomake" (CMAKE unmanage this compiler), 
+"pomc" (message compiler ?) and "posign" (but nothing like "implib" or "impdef" ...).
+
+Note that Pelles C Compiler version 12.0 present an bug since version of Windows 11 24H2 (the last).
+Compiler "pocc" provoke "minidump" during use of last version "ntdll" on W11, and CB detect this issue with code
+ERRORLEVEL not equal to 0, and stop after some compilations into CB.
+Wait repair or reinstall previous version 11.0 of Pelles C (I don't try !).
+
+----------------------------------------------------------------------------------------------------------------
+Suggestion to Team CB with Pelles C compiler (32 or 64 bit) : 
+
+	1) I propose to study, if it's pertinent to detect automatically presence of Pelles C compiler on Win32 systems.
+		Search presence of directory "C\Program Files (x86)\PellesC" (seem suffisant by default ?).
+			Accepted or not ?
+----------------------------------------------------------------------------------------------------------------
+
+J) With "Tiny C" compiler (32 and 64 bit).
+
+Normally, after decompress two archive files to install Tiny C Compiler in directory C:\tcc proposed by default, CB 
+can detect it, and it's identified by "Tiny C Compiler". 
+
+But, if you want use 32 bit or 64 bit configuration of this compiler, you must access into IDE CB at menu "Settings" 
+and submenu "Compilers" to select "Tiny C Compiler", and rename it, by example "Tiny C Compiler X32"
+
+An after, you must position "Compiler's installation directory" to "C:\tcc" in subtab "Toolchain executables".
+I recommand to add this path into "Additional Paths" to be sure to give access at tools into it, and not in "\bin" subdir.
+
+This directory is the same beetween 32 or 64 bits, but the rest of configuration is different in 32 or 64 bits.
+You must select list of tools like this (in tab "Program Files") :
+	C Compiler : 				tcc.exe
+	C++ Compiler :				
+	Linker for dynamic libs :	tcc.exe
+	Linker for statics libs :	tcc.exe 
+	Debugger :					GDB/CDB 		(choice by default, because TCC is compatible with version GDB)
+	Resource compiler :			windres.exe 	(tcc is compatible with this resource compiler provided by GNU)
+	Make program : 				mingw32-make.exe 	(tcc don't provided this tool, but GNU with MinGW32/64 make tool)
+
+For compiler, search directories of "include files", "lib files" and "Resource include files" are :
+		C:\tcc\include
+		C:\tcc\lib
+		C:\mingw64\x86_64-w64-mingw32\include		(Strange ? Because "resource compiler" is "windres.exe" ?)
+									(Why not use "C:\tcc\include" ?)
+									
+Into subtab "Compiler Settings" and "Linker Settings", you must add respectively in subtab "Other compiler options" 
+and zone "Other linker options", same option "-m32" to force use of i386 toolchain during build.
+
+And, to distinguish version 64 bit into CB, you must first copy "Tiny C Compiler X32" and rename it in "Tiny C Compiler X64".
+
+To terminate, you must "force" an option in tab "Compiler Settings" and in subtab "Other compiler options" to "-m64", and 
+add the same option in zone "Other linker options".
+
+Syntax of  Tine C compiler "tcc" is very simple, to resume principal and useful options of command "tcc", you can use by 
+example :
+
+	"-m32" 				Generate i386 32 bit object or executable.
+	"-m64" 				Generate x64 64 bit object or executable (default on X64 architecture ?)
+	"-c"                Compile and assemble, but do not link.
+	"-g" 				Enable debug information.
+	"-D<macro[=value]>" Define macro to preprocessor, and optionnally attribute a value.
+	"-o <file>"         Place the output into <file>
+	"-I<directory>"		Add directory to search include files.
+	"-L<directory>"	    Add directory to search library files (warning, "tcc" don't use import library file but "import" definition file only)
+	'-lxxxxx" 			Use xxxxx "library" (not, it's "import" definition file) needed to build target 
+								(ex : if opengl32.def exist into subdir "\lib" of tcc, you can use opengl in your code with "lopengl32") 
+	"-shared" 			To build shared library (DLL on Win32 systems)
+	"-w"          		Disable all warnings
+
+And this same tool must be used to :
+  create static library  	: 	tcc -ar [rcsv] lib.a files
+  create def file 			: 	tcc -impdef lib.dll [-v] [-o lib.def]       			(like with "opengl32.dll" provided by W11 by example)
+
+You can see after how to generate 64 bit DLL with this compiler into console commeand windows (CMD) :
+
+echo. ******************          Compilation de la DLL en mode 64 bits        *******************
+REM     Options used by Tiny C Compiler 64 bit
+REM 		-m64      					Select x86_64 toolchain (64 bit)
+REM 		-c       					Compile only, stop just before linkage
+REM 		-Dxxxx						Define variable xxxxx used by preprocessor 
+REM 		-o xxxxx 					Define output file generated by Tiny C Compiler, here obj file
+tcc -m64 -c -DBUILD_DLL -DNDEBUG src\dll_core.c -o dll_core64.obj
+echo. *****************                Edition des liens .ie. linkage de la DLL.        			***************
+REM     Options used by linker of Tiny C Compiler  
+REM 		-m64      					Select x86_64 toolchain (64 bit) to linkage
+REM 		-shared     				Select "shared" generation, here to build DLL on Win32 systems
+REM 		-o xxxxx 					Define output file generated by Tiny C Compiler, here dll file
+tcc -m64 -shared dll_core64.obj -o dll_core64.dll
+REM 	Tiny C compiler can also be used to construct static library file ("tcc -ar ...") or create "import" definition file (the last to be used after by test programs)
+REM 		-m64      					Select x86_64 toolchain (64 bit) to generate "import" definition file 
+REM 		-impdef     				Select generation of "import" definition file (TCC don't never use an import library file like others compilers ... but def file)
+echo. ************    Dump des symboles exportes avec l option impdef puis type file genere     **************
+tcc -m64 -impdef dll_core64.dll -o dll_core64.def
+type dll_core64.def
+REM 			You can generate version 32 bit of this DLL by exchange "-m64" by "-m32" in this command file
+
+Internal commands used by CB with Tiny C compiler are described after :
+
+	1) command : compile single file to object file 
+		$compiler $options $includes -c $file -o $object
+	2) command : generate dependencies for file
+		...     empty field     ...    
+	3) command : compile Win32 resource file          
+		...     empty field     ...  
+	4) command : link object files to executable 				(or GUI executable on Win32 systems)
+		$linker $libdirs -o $exe_output $link_objects $link_resobjects $link_options $libs -mwindows
+	5) command : link object files to console executable
+		$linker $libdirs -o $exe_output $link_objects $link_resobjects $link_options $libs
+	6) command : link object files to dynamic library
+		$linker -shared -Wl,--output-def=$def_output -Wl,--out-implib=$static_output -Wl,--dll $libdirs $link_objects \ 
+						$link_resobjects -o $exe_output $link_options $libs
+	7) command : link object files to static library
+		...     empty field     ...  
+	8) command : link object files to native executable 
+		$linker $libdirs -o $exe_output $link_objects $link_resobjects $link_options $libs
+		
+Remark n° 1 : TCC is not GNUC compiler, internal command n° 6 (link object files to dynamic library) don't run with 
+	options "-Wl,--output-def=$def_output, -Wl,--out-implib=$static_output -Wl,--dll". Nothing of these three options 
+	work on Win32 systems (maybe on Linux systems ...).
+	
+Remark n° 2 : It's clearly noted in doc of tcc that it's possible to use "windres.exe" to compile resource file,
+	and after link result of this last compilation with other components to build an target. Here simple example :
+	"windres -O coff app.rc -o appres.o
+    tcc app.c appres.o -o app.exe"
+	Why command n° 3 (compile Win32 resource file) is empty in this case ?
+	
+Remark n° 3 : Why command n° 7 (link object files to static library) is empty too ? It seem that this compiler
+	is able to create "static library" in format "*.a" like with GCC. But not *.lib ...
+
+----------------------------------------------------------------------------------------------------------------
+Suggestions to Team CB with Tiny C compiler (32 or 64 bit) : 
+
+	1) I propose to suppress three options "-Wl,--output-def=$def_output, -Wl,--out-implib=$static_output -Wl,--dll"
+	 during build target DLL with Tiny C Compiler because these options are rejected during link on Win32 systems.
+			Accepted or not ?
+
+	2) I propose to fill internal command n° 3 with next syntax with $rescomp is "windres.exe" and $res_includes valued
+		by $includes (for me C:\tcc\include seem to be suffisant to compile resource file like in example below) : 
+			"$rescomp $res_includes $res_options -O coff $file -o $resource_output"
+		Full syntax is with input file of type "*.rc" :
+			"$rescomp $res_includes $res_options -I rc -O coff -i $file -o $resource_output
+		Study what is the extension of output in this case by default : "*.o" or "*.obj" or "*.res" (maybe nothing
+		  importance).
+			Accepted or not ?
+			
+	3) I propose to fill internal command n° 7 (link object files to static library) with next syntax :
+			"$linker -ar c $static_output $link_objects 
+			Accepted or not ?
+----------------------------------------------------------------------------------------------------------------
+	
+----------------------------------------------------------------------------------------------------------------
+Global Suggestion to Team CB about internals commands.
+
+I'm not sure about "good" definitions of all internals commands used by CB.
+
+Look at the list of these commands :
+
+	1) command : compile single file to object file       	-> essential command to develop with C/C++ language
+	2) command : generate dependencies for file				-> define only one with use of "like" GCC/G++ compiler into CB
+																and never "implemented" with others compilers on Win32 
+																systems. What is it usage ? Makefile or makedepend ? 
+																Autoconf / Autotools ? In what case is it activated into CB ?
+	3) command : compile Win32 resource file          		-> useful command to develop on Win32 systems (because
+																resource file is a specificity of development Windows).
+	4) command : link object files to executable (or GUI)	-> essential command to develop on Win32 systems
+	5) command : link object files to console executable	-> essential command to develop on "many systems", not only Win32
+	6) command : link object files to dynamic library		-> essential command to develop on Win32 systems, and
+																it's very good intention if creation of import 
+																library is execute in parallel of build DLL.
+	7) command : link object files to static library 		-> not essential command to develop, but nice to 
+																activate this possibility into CB (example : glaux.lib).
+	8) command : link object files to native executable 	-> maybe useful command to develop on Win32 systems, but
+																is not "good designed" into CB, because this possibility
+																seem to be put in practical to build ... "native" DLL
+																or "system" DLL, or Kernel mode drivers (often DLL).
+																And, with Linux or MacOs, is it use often ? 
+
+	1) I propose to study, if it's pertinent to revisit content of internal command n° 8 on Win32 systems
+		to generate true "native" DLL (with compilers that present this possibility : GCC/MSVC/CLANG/BCC ...)
+		or to distinguish into CB build of "native" executable and build of "native" DLL with supplemental 
+		internal command n° 9 -> "link object files to native DLL".
+		In this case, I think that you must study "all" impacts into GUI of IDE CB to evaluate cost of this 
+		evolution. Maybe tranform only internal command n° 8 to generate DLL be enougth in first time.
+			Accepted or not ?
+
+----------------------------------------------------------------------------------------------------------------
